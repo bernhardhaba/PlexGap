@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PlexGap</title>
+<style>
+:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70;--card:#f4f4f6;--acc:#e5a00d;--bd:#dcdce0}
+@media(prefers-color-scheme:dark){:root{--bg:#18181a;--fg:#ececee;--mut:#9a9aa0;--card:#252528;--bd:#38383c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px}
+h1{margin:0 0 16px}
+button,select{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+button.p{background:var(--acc);border-color:var(--acc);color:#111;font-weight:600;cursor:pointer}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
+.bar{height:8px;background:var(--card);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc);width:0}
+details{background:var(--card);border-radius:10px;margin:8px 0;padding:10px 14px}
+summary{cursor:pointer;font-weight:600}
+summary span{color:var(--mut);font-weight:400}
+ul{margin:8px 0 0;padding-left:0;list-style:none}
+li{padding:2px 0;font-size:.95em}
+code{background:var(--bg);padding:1px 6px;border-radius:4px}
+.mut{color:var(--mut)}.err{color:#d33}
+</style>
+</head>
+<body>
+<main>
+<h1>PlexGap <span class="mut" style="font-size:.5em;font-weight:400">Fehlende Serienfolgen</span></h1>
+<div id="login"><button class="p" id="btnLogin">Mit Plex anmelden</button>
+<p class="mut" id="loginMsg"></p></div>
+<div id="app" hidden>
+  <div class="row">
+    <input id="url" placeholder="Serveradresse" size="26" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)">
+    <select id="server"></select>
+    <select id="lib"></select>
+    <button class="p" id="btnScan">Prüfen</button>
+    <button id="btnStop" hidden>Stopp</button>
+    <button id="btnClear" hidden>Ergebnis löschen</button>
+    <button id="btnLogout">Abmelden</button>
+  </div>
+  <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
+  <p class="mut" id="status"></p>
+  <div id="out"></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let token=localStorage.getItem('plexToken')||'';
+const api=async(p,o={})=>{
+  const r=await fetch(p,{...o,headers:{'X-Token':token,'Content-Type':'application/json'}});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error||r.status); return j;
+};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+
+$('btnLogin').onclick=async()=>{
+  try{
+    $('loginMsg').textContent='Starte Anmeldung …';
+    const pin=await api('/api/pin',{method:'POST'});
+    $('loginMsg').innerHTML='Bitte hier bei Plex anmelden: <a href="'+esc(pin.url)+'" target="_blank" rel="noopener">Plex-Anmeldung öffnen</a><br>Warte auf Bestätigung …';
+    try{window.open(pin.url,'_blank')}catch(e){}
+    for(let i=0;i<120;i++){
+      await new Promise(r=>setTimeout(r,2000));
+      const r=await api(`/api/pin?id=${pin.id}&code=${pin.code}`);
+      if(r.token){token=r.token;localStorage.setItem('plexToken',token);return init();}
+    }
+    $('loginMsg').textContent='Zeitüberschreitung, bitte erneut versuchen.';
+  }catch(e){$('loginMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+};
+$('btnLogout').onclick=()=>{localStorage.removeItem('plexToken');token='';location.reload()};
+
+async function init(){
+  if(!token) return;
+  try{
+    await api('/api/servers'); // prüft, ob der Token gültig ist
+    $('login').hidden=true;$('app').hidden=false;
+    $('url').value=localStorage.getItem('plexUrl')||'http://192.168.2.20:32400';
+    $('url').onchange=()=>{localStorage.setItem('plexUrl',$('url').value);loadLibs()};
+    $('server').hidden=true;
+    await loadLibs();
+    await showLast();
+  }catch(e){
+    localStorage.removeItem('plexToken');token='';
+    $('login').hidden=false;$('app').hidden=true;
+    $('loginMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>';
+  }
+}
+async function loadLibs(){
+  $('lib').innerHTML='<option>Lade …</option>';
+  try{
+    const libs=await api('/api/libraries?url='+encodeURIComponent($('url').value));
+    $('lib').innerHTML=libs.length?libs.map(l=>`<option value="${esc(l.key)}">${esc(l.title)}</option>`).join(''):'<option value="">Keine Serien-Bibliothek</option>';
+  }catch(e){$('lib').innerHTML='<option value="">Server nicht erreichbar</option>';$('status').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+  updateScanBtn();
+}
+$('btnScan').onclick=async()=>{
+  if(!$('lib').value) return;
+  const resume=canResume();
+  if(!resume) $('out').innerHTML='';
+  $('barWrap').hidden=false;$('btnScan').disabled=true;
+  const {id}=await api('/api/scan',{method:'POST',body:JSON.stringify({url:$('url').value,section:$('lib').value,resume})});
+  $('btnStop').hidden=false;$('btnStop').disabled=false;
+  $('btnStop').onclick=async()=>{$('btnStop').disabled=true;$('status').textContent='Stoppe …';
+    await api('/api/stop',{method:'POST',body:JSON.stringify({id})})};
+  while(true){
+    const j=await api('/api/job?id='+id);
+    $('bar').style.width=(j.total?j.done/j.total*100:0)+'%';
+    $('status').textContent=j.state==='error'?'':`${j.done}/${j.total} – ${j.current}`;
+    render(j);
+    if(j.state==='error'){$('status').innerHTML='<span class="err">'+esc(j.error)+'</span>';break}
+    if(j.state==='done'){
+      const n=j.results.filter(r=>r.missing.length).length;
+      await showLast();break}
+    await new Promise(r=>setTimeout(r,1000));
+  }
+  $('btnScan').disabled=false;$('barWrap').hidden=true;$('btnStop').hidden=true;
+};
+let last=null;
+const canResume=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
+const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':'Prüfen'};
+$('lib').onchange=updateScanBtn;
+async function showLast(){
+  const d=await api('/api/last');
+  last=d;updateScanBtn();
+  render(d,true);
+  $('btnClear').hidden=!d.results.length;
+  $('status').textContent=d.date?`Gespeichertes Ergebnis vom ${new Date(d.date).toLocaleString('de-DE')}: ${d.results.filter(r=>r.missing.length).length} Serien mit fehlenden Folgen.`+(d.partial?` (gestoppt, nur ${d.partial} Serien geprüft)`:''):'';
+}
+$('btnClear').onclick=async()=>{
+  if(!confirm('Gespeichertes Ergebnis komplett löschen?')) return;
+  await api('/api/last/clear',{method:'POST'});showLast();
+};
+$('out').onclick=async e=>{
+  const b=e.target.closest('button[data-del]'); if(!b) return;
+  e.preventDefault();
+  await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});showLast();
+};
+function render(j,deletable){
+  const open=new Set([...document.querySelectorAll('details[open]')].map(d=>d.dataset.t));
+  const rs=[...j.results].sort((a,b)=>a.title.localeCompare(b.title));
+  $('out').innerHTML=rs.map(r=>{
+    const bySeason={};r.missing.forEach(m=>(bySeason[m.s]??=[]).push(m));
+    const body=r.missing.length?Object.entries(bySeason).map(([s,l])=>
+      `<li><b>Staffel ${s}:</b> ${l.length} fehlen<ul>${l.map(m=>`<li><code>S${pad(m.s)}E${pad(m.e)}</code> ${esc(m.name)} <span class="mut">(${m.airdate})</span></li>`).join('')}</ul></li>`).join('')
+      :'';
+    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}><summary>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Aus Ergebnis entfernen" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
+  }).join('');
+}
+init();
+</script>
+</body>
+</html>
