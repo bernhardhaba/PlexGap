@@ -106,11 +106,11 @@ def tvmaze_find(show_title, guids):
         else:
             continue
         try:
-            return get_json(url)["id"]
+            return get_json(url)  # Show-Objekt mit id und averageRuntime
         except Exception:
             pass
     try:
-        return get_json("https://api.tvmaze.com/singlesearch/shows?q=" + urllib.parse.quote(show_title))["id"]
+        return get_json("https://api.tvmaze.com/singlesearch/shows?q=" + urllib.parse.quote(show_title))
     except Exception:
         return None
 
@@ -207,7 +207,9 @@ def scan(job, token, machine_id, section, url="", resume=False):
                         continue
                     for n in range(ep, (l.get("indexEnd") or ep) + 1):
                         have.add((se, n))
-                tid = tvmaze_find(s["title"], guids)
+                show = tvmaze_find(s["title"], guids)
+                tid = show["id"] if show else None
+                avg = (show or {}).get("averageRuntime") or (show or {}).get("runtime")
                 if tid is None:
                     entry["note"] = "Serie bei TVmaze nicht gefunden"
                 else:
@@ -219,7 +221,8 @@ def scan(job, token, machine_id, section, url="", resume=False):
                             continue  # noch nicht ausgestrahlt
                         if (e["season"], e["number"]) not in have:
                             entry["missing"].append({"s": e["season"], "e": e["number"],
-                                                     "name": e.get("name", ""), "airdate": e["airdate"]})
+                                                     "name": e.get("name", ""), "airdate": e["airdate"],
+                                                     "rt": e.get("runtime") or avg or 0})
             except Exception as ex:
                 entry["note"] = f"Fehler: {ex}"
             else:

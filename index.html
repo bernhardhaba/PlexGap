@@ -24,6 +24,24 @@ li{padding:2px 0;font-size:.95em}
 code{background:var(--bg);padding:1px 6px;border-radius:4px}
 .mut{color:var(--mut)}.err{color:#d33}
 a{color:var(--acc)}
+.stats{margin-top:28px;padding:14px 16px;background:var(--card);border-radius:10px;font-size:.92em}
+.stats h2{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
+.stats{--ok:#3aa76d}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+@media(min-width:560px){.tiles{grid-template-columns:repeat(4,1fr)}}
+.tile{background:var(--bg);border-radius:8px;padding:10px 12px}
+.tile b{display:block;font-size:1.6em;line-height:1.2}
+.tile span{color:var(--mut);font-size:.82em}
+.split{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--bg)}
+.split i{display:block;height:100%}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 14px;font-size:.85em;color:var(--mut)}
+.legend em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.top{display:grid;grid-template-columns:minmax(0,1fr) 2fr auto;gap:6px 10px;align-items:center;font-size:.88em}
+.top .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .bar2{height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
+.top .bar2 i{display:block;height:100%;background:var(--acc);border-radius:5px}
+.top .c{font-weight:600;text-align:right}
+.stats h3{font-size:.8em;color:var(--mut);margin:0 0 6px;font-weight:600}
 .ignbox{margin-top:36px;padding-top:20px;border-top:2px solid var(--bd)}
 .ignbox h2{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
 .ignbox details{background:transparent;border:1px dashed var(--bd)}
@@ -48,6 +66,7 @@ a{color:var(--acc)}
   <p class="mut" id="status"></p>
   <div id="out"></div>
   <div id="ign"></div>
+  <div id="stats"></div>
 </div>
 <p class="mut" id="ver" style="margin-top:32px;font-size:.85em"></p>
 </main>
@@ -178,7 +197,41 @@ $('out').onclick=async e=>{
   await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});
   if(scanning) showIgnored(); else showLast(); // im Lauf aktualisiert die Abfrage die Liste selbst
 };
+function fmtTime(min){
+  const h=Math.floor(min/60),m=Math.round(min%60);
+  let s=h?`${h} Std. ${m} Min.`:`${m} Min.`;
+  if(h>=24) s+=` (≈ ${(min/1440).toFixed(1).replace('.',',')} Tage)`;
+  return s;
+}
+function showStats(results,checked){
+  if(!checked&&!results.length){$('stats').innerHTML='';return}
+  const withMissing=results.filter(r=>r.missing.length);
+  const eps=withMissing.reduce((a,r)=>a+r.missing.length,0);
+  let min=0,unknown=0;
+  withMissing.forEach(r=>r.missing.forEach(m=>{if(m.rt)min+=m.rt;else unknown++}));
+  const total=Math.max(checked,withMissing.length);
+  const complete=total-withMissing.length;
+  const pct=n=>total?(n/total*100):0;
+  const top=[...withMissing].sort((a,b)=>b.missing.length-a.missing.length).slice(0,5);
+  const maxEp=top.length?top[0].missing.length:1;
+  $('stats').innerHTML=`<div class="stats"><h2>Statistik</h2>
+    <div class="tiles">
+      <div class="tile"><b>${total}</b><span>Serien geprüft</span></div>
+      <div class="tile"><b>${withMissing.length}</b><span>mit fehlenden Folgen</span></div>
+      <div class="tile"><b>${eps}</b><span>Folgen fehlen gesamt</span></div>
+      <div class="tile"><b style="font-size:1.25em;line-height:1.55">${fmtTime(min)}</b><span>Fernsehzeit zu laden</span></div>
+    </div>
+    <h3>Vollständigkeit der Serien</h3>
+    <div class="split" role="img" aria-label="${complete} vollständig, ${withMissing.length} mit Lücken">
+      <i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(withMissing.length)}%;background:var(--acc)"></i></div>
+    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span>
+      <span><em style="background:var(--acc)"></em>Mit Lücken ${withMissing.length} (${Math.round(pct(withMissing.length))} %)</span></div>
+    ${top.length?`<h3>Die meisten fehlenden Folgen</h3><div class="top">${top.map(r=>
+      `<span class="n" title="${esc(r.title)}">${esc(r.title)}</span><div class="bar2"><i style="width:${r.missing.length/maxEp*100}%"></i></div><span class="c">${r.missing.length}</span>`).join('')}</div>`:''}
+    ${unknown?`<div class="mut" style="margin-top:10px;font-size:.85em">Für ${unknown} Folgen ist die Laufzeit unbekannt und nicht eingerechnet.</div>`:''}</div>`;
+}
 function render(j,deletable){
+  showStats(j.results,Array.isArray(j.checked)?j.checked.length:(j.done||0));
   const open=new Set([...document.querySelectorAll('details[open]')].map(d=>d.dataset.t));
   const rs=[...j.results].sort((a,b)=>a.title.localeCompare(b.title));
   $('out').innerHTML=rs.map(r=>{
