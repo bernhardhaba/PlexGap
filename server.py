@@ -305,7 +305,7 @@ def scan(job, token, machine_id, section, url="", resume=False):
                    "shows": shows_stats,
                    "partial": None if complete else f"{job['done']}/{job['total']}",
                    "results": final})
-        if complete and not prev:  # nur komplette Neu-Prüfungen im Verlauf festhalten
+        if complete and not job.get("cancel"):  # jede vollständig durchgelaufene Prüfung (auch nach Fortsetzen) im Verlauf festhalten
             record_history(section, agg_of(shows_stats, ign_rk), final)
         job["state"] = "done"
     except Exception as ex:
