@@ -16,6 +16,7 @@ h1{margin:0 0 16px}
 button,select{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
 button.p{background:var(--acc);border-color:var(--acc);color:#111;font-weight:600;cursor:pointer}
 .row{display:flex;gap:8px;flex-wrap:nowrap;margin:12px 0;align-items:center}
+button:disabled{opacity:.4;cursor:default}
 .row button,.row select{white-space:nowrap;flex:0 0 auto;padding:8px 12px}
 .row #url{flex:1 1 120px;min-width:90px;width:0}
 @media(max-width:700px){.row{flex-wrap:wrap}.row #url{flex-basis:100%}}
@@ -77,8 +78,8 @@ a{color:var(--acc)}
     <select id="server"></select>
     <select id="lib"></select>
     <button class="p" id="btnScan">Prüfen</button>
-    <button id="btnStop" hidden>Stopp</button>
-    <button id="btnClear" hidden>Ergebnis löschen</button>
+    <button id="btnStop" disabled>Stopp</button>
+    <button id="btnClear" disabled>Löschen</button>
     <button id="btnLogout">Abmelden</button>
   </div>
   <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
@@ -162,9 +163,9 @@ $('btnScan').onclick=async()=>{
   if(isFinished()) await api('/api/last/clear',{method:'POST'}); // Neuer Scan: altes Ergebnis löschen
   scanning=true;
   if(!resume) $('out').innerHTML='';
-  $('barWrap').hidden=false;$('btnScan').disabled=true;
+  $('barWrap').hidden=false;$('btnScan').disabled=true;$('btnClear').disabled=true;
   const {id}=await api('/api/scan',{method:'POST',body:JSON.stringify({url:$('url').value,section:$('lib').value,resume})});
-  $('btnStop').hidden=false;$('btnStop').disabled=false;
+  $('btnStop').disabled=false;
   $('btnStop').onclick=async()=>{$('btnStop').disabled=true;$('status').textContent='Stoppe …';
     await api('/api/stop',{method:'POST',body:JSON.stringify({id})})};
   while(true){
@@ -179,7 +180,8 @@ $('btnScan').onclick=async()=>{
     await new Promise(r=>setTimeout(r,1000));
   }
   scanning=false;
-  $('btnScan').disabled=false;$('barWrap').hidden=true;$('btnStop').hidden=true;
+  $('btnScan').disabled=false;$('barWrap').hidden=true;$('btnStop').disabled=true;
+  $('btnClear').disabled=!(last&&last.results&&last.results.length);
 };
 let last=null,scanning=false;
 const sameLib=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
@@ -209,7 +211,7 @@ async function showLast(){
   try{doneSet=new Set(await api('/api/done'))}catch(e){}
   last=d;updateScanBtn();
   render(d,true);
-  $('btnClear').hidden=!d.results.length;
+  $('btnClear').disabled=scanning||!d.results.length;
   $('status').textContent=d.date?`Gespeichertes Ergebnis vom ${new Date(d.date).toLocaleString('de-DE')}: ${d.results.filter(r=>r.missing.length).length} Serien mit fehlenden Folgen.`+(d.partial?` (gestoppt, nur ${d.partial} Serien geprüft)`:''):'';
 }
 $('btnClear').onclick=async()=>{
