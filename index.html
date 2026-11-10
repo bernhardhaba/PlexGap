@@ -23,6 +23,10 @@ ul{margin:8px 0 0;padding-left:0;list-style:none}
 li{padding:2px 0;font-size:.95em}
 code{background:var(--bg);padding:1px 6px;border-radius:4px}
 .mut{color:var(--mut)}.err{color:#d33}
+a{color:var(--acc)}
+.ignbox{margin-top:36px;padding-top:20px;border-top:2px solid var(--bd)}
+.ignbox h2{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
+.ignbox details{background:transparent;border:1px dashed var(--bd)}
 </style>
 </head>
 <body>
@@ -143,8 +147,8 @@ const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':'Prü
 $('lib').onchange=updateScanBtn;
 async function showIgnored(){
   const l=await api('/api/ignored');
-  $('ign').innerHTML=l.length?`<details><summary>Ausgeblendete Serien <span>${l.length}</span></summary><ul>${l.map(i=>
-    `<li>${esc(i.title)} <button data-unhide="${esc(i.title)}" style="float:right;padding:0 8px">Einblenden</button></li>`).join('')}</ul></details>`:'';
+  $('ign').innerHTML=l.length?`<div class="ignbox"><h2>Ausgeblendet</h2><details><summary>Ausgeblendete Serien <span>${l.length}</span></summary><ul>${l.map(i=>
+    `<li>${esc(i.title)} <button data-unhide="${esc(i.title)}" style="float:right;padding:0 8px">Einblenden</button></li>`).join('')}</ul></details></div>`:'';
 }
 $('ign').onclick=async e=>{
   const b=e.target.closest('button[data-unhide]'); if(!b) return;
