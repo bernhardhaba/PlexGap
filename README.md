@@ -1,3 +1,5 @@
+<p align="center"><img src="logo.webp" alt="PlexGap" width="480"></p>
+
 # PlexGap
 
 Findet fehlende Serienfolgen in deiner Plex-Bibliothek. Die App meldet sich per Plex-PIN an,

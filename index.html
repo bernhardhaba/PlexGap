@@ -12,7 +12,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-
 main{max-width:760px;margin:0 auto;padding:24px 16px}
 h1{margin:0 0 16px}
 .brand{background:#1c1c1e;border-radius:14px;padding:6px 18px;display:flex;justify-content:center}
-.brand img{display:block;height:72px;width:auto;max-width:100%;object-fit:contain}
+.brand img{display:block;height:auto;width:min(100%,460px);max-width:100%;object-fit:contain}
 button,select{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
 button.p{background:var(--acc);border-color:var(--acc);color:#111;font-weight:600;cursor:pointer}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
@@ -59,7 +59,7 @@ a{color:var(--acc)}
 </head>
 <body>
 <main>
-<h1 class="brand"><img src="/logo.webp?v=2" alt="PlexGap – fehlende Serienfolgen finden"></h1>
+<h1 class="brand"><img src="/logo.webp?v=3" alt="PlexGap – fehlende Serienfolgen finden"></h1>
 <div id="login"><button class="p" id="btnLogin">Mit Plex anmelden</button>
 <p class="mut" id="loginMsg"></p></div>
 <div id="app" hidden>
