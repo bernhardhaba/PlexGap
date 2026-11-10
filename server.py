@@ -240,6 +240,7 @@ jobs = {}
 
 def scan(job, token, machine_id, section, url="", resume=False):
     try:
+        _tvmaze_eps.clear()  # Episodenlisten bei jedem Lauf frisch von TVmaze holen (nicht tagelang im Speicher halten)
         prev = load_last() if resume else {}
         if prev.get("section") != section:
             prev = {}  # anderes Ergebnis/andere Bibliothek: von vorn beginnen
