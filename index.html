@@ -155,7 +155,9 @@ async function loadLibs(){
 }
 $('btnScan').onclick=async()=>{
   if(!$('lib').value) return;
-  const resume=canResume();scanning=true;
+  const resume=canResume();
+  if(isFinished()) await api('/api/last/clear',{method:'POST'}); // Neuer Scan: altes Ergebnis löschen
+  scanning=true;
   if(!resume) $('out').innerHTML='';
   $('barWrap').hidden=false;$('btnScan').disabled=true;
   const {id}=await api('/api/scan',{method:'POST',body:JSON.stringify({url:$('url').value,section:$('lib').value,resume})});
@@ -177,8 +179,10 @@ $('btnScan').onclick=async()=>{
   $('btnScan').disabled=false;$('barWrap').hidden=true;$('btnStop').hidden=true;
 };
 let last=null,scanning=false;
-const canResume=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
-const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':'Prüfen'};
+const sameLib=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
+const canResume=()=>sameLib()&&!!last.partial;   // gestoppter Lauf: weitermachen
+const isFinished=()=>sameLib()&&!last.partial;   // durchgelaufen: Neuer Scan
+const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':isFinished()?'Neuer Scan':'Prüfen'};
 $('lib').onchange=updateScanBtn;
 async function showIgnored(){
   const l=await api('/api/ignored');
