@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# PlexGap: legt LXC 109 (192.168.2.209) an und installiert die App.
+# PlexGap: legt LXC 109 (192.168.2.9) an und installiert die App.
 # Auf dem Proxmox-Host als root ausführen:  bash PlexGap-Proxmox-Setup.sh
 # Optional anpassbar per Umgebungsvariable: GW, BRIDGE, STORAGE, TEMPLATE_STORAGE
 set -euo pipefail
 
 CTID=109
-IP=192.168.2.209/24
+IP=192.168.2.9/24
 GW=${GW:-192.168.2.1}
 BRIDGE=${BRIDGE:-vmbr0}
 STORAGE=${STORAGE:-local-lvm}
@@ -56,4 +56,4 @@ done
 pct exec "$CTID" -- bash -c 'cd /root/plexgap && bash install-lxc.sh'
 
 echo
-echo "PlexGap läuft: http://192.168.2.209:8765"
+echo "PlexGap läuft: http://192.168.2.9:8765"
