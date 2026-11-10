@@ -239,7 +239,7 @@ function showStats(j){
   const lim=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
   const byYear={};let recent=0;
   gaps.forEach(r=>r.missing.forEach(m=>{const y=m.airdate.slice(0,4);byYear[y]=(byYear[y]||0)+1;if(m.airdate>=lim)recent++}));
-  const years=Object.keys(byYear).sort(),maxY=Math.max(1,...years.map(y=>byYear[y]));
+  const years=Object.keys(byYear).sort().reverse(),maxY=Math.max(1,...years.map(y=>byYear[y]));
   // Fast fertig
   const almost=gaps.filter(r=>r.missing.length<=3).sort((a,b)=>a.missing.length-b.missing.length||a.title.localeCompare(b.title));
   // Ganze Staffeln
