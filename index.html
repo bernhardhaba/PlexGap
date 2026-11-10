@@ -43,6 +43,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:4px}
   <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
   <p class="mut" id="status"></p>
   <div id="out"></div>
+  <div id="ign"></div>
 </div>
 </main>
 <script>
@@ -121,7 +122,21 @@ let last=null;
 const canResume=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
 const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':'Prüfen'};
 $('lib').onchange=updateScanBtn;
+async function showIgnored(){
+  const l=await api('/api/ignored');
+  $('ign').innerHTML=l.length?`<details><summary>Ausgeblendete Serien <span>${l.length}</span></summary><ul>${l.map(i=>
+    `<li>${esc(i.title)} <button data-unhide="${esc(i.title)}" style="float:right;padding:0 8px">Einblenden</button></li>`).join('')}</ul></details>`:'';
+}
+$('ign').onclick=async e=>{
+  const b=e.target.closest('button[data-unhide]'); if(!b) return;
+  e.preventDefault();
+  await api('/api/ignored/remove',{method:'POST',body:JSON.stringify({title:b.dataset.unhide})});
+  const open=document.querySelector('#ign details');
+  await showIgnored();
+  const d=document.querySelector('#ign details'); if(d&&open) d.open=true;
+};
 async function showLast(){
+  showIgnored();
   const d=await api('/api/last');
   last=d;updateScanBtn();
   render(d,true);
@@ -145,7 +160,7 @@ function render(j,deletable){
     const body=r.missing.length?Object.entries(bySeason).map(([s,l])=>
       `<li><b>Staffel ${s}:</b> ${l.length} fehlen<ul>${l.map(m=>`<li><code>S${pad(m.s)}E${pad(m.e)}</code> ${esc(m.name)} <span class="mut">(${m.airdate})</span></li>`).join('')}</ul></li>`).join('')
       :'';
-    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}><summary>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Aus Ergebnis entfernen" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
+    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}><summary>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Dauerhaft ausblenden" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
   }).join('');
 }
 init();

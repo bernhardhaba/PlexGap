@@ -143,6 +143,25 @@ def clear_last():
             os.remove(RESULT_FILE)
 
 
+# ---------- Dauerhaft ausgeblendete Serien ----------
+IGNORE_FILE = os.path.join(HERE, "ignored.json")
+
+
+def load_ignored():
+    with _lock:
+        try:
+            with open(IGNORE_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+
+
+def save_ignored(items):
+    with _lock:
+        with open(IGNORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False)
+
+
 # ---------- Scan-Job ----------
 jobs = {}
 
@@ -153,6 +172,9 @@ def scan(job, token, machine_id, section, url="", resume=False):
         if prev.get("section") != section:
             prev = {}  # anderes Ergebnis/andere Bibliothek: von vorn beginnen
         checked = set(prev.get("checked", []))
+        ign = load_ignored()
+        ign_rk = {i["rk"] for i in ign if i.get("rk")}
+        ign_titles = {i["title"] for i in ign}
         job["results"] = list(prev.get("results", []))
         conn = connect(token, machine_id, url)
         shows = plex_get(conn, f"/library/sections/{section}/all?type=2&includeGuids=1")["MediaContainer"].get("Metadata", [])
@@ -162,12 +184,15 @@ def scan(job, token, machine_id, section, url="", resume=False):
             if job.get("cancel"):
                 break
             rk = str(s["ratingKey"])
+            if rk in ign_rk or s["title"] in ign_titles:
+                job["done"] += 1  # dauerhaft ausgeblendet
+                continue
             if rk in checked:
                 job["done"] += 1
                 continue
             job["results"] = [r for r in job["results"] if r["title"] != s["title"]]
             job["current"] = s["title"]
-            entry = {"title": s["title"], "year": s.get("year"), "missing": [], "note": None}
+            entry = {"title": s["title"], "year": s.get("year"), "missing": [], "note": None, "rk": rk}
             try:
                 guids = [g["id"] for g in s.get("Guid", [])]
                 leaves = plex_get(conn, f"/library/metadata/{s['ratingKey']}/allLeaves")["MediaContainer"].get("Metadata", [])
@@ -200,7 +225,7 @@ def scan(job, token, machine_id, section, url="", resume=False):
         save_last({"date": datetime.datetime.now().isoformat(timespec="seconds"),
                    "section": section,
                    "checked": sorted(checked),
-                   "partial": f"{len(checked)}/{job['total']}" if len(checked) < job["total"] else None,
+                   "partial": f"{job['done']}/{job['total']}" if job["done"] < job["total"] else None,
                    "results": [r for r in job["results"] if r["missing"] or r["note"]]})
         job["state"] = "done"
     except Exception as ex:
@@ -245,6 +270,8 @@ class H(BaseHTTPRequestHandler):
                 self.send([{"key": s["key"], "title": s["title"]} for s in secs if s["type"] == "show"])
             elif u.path == "/api/last":
                 self.send(load_last())
+            elif u.path == "/api/ignored":
+                self.send(load_ignored())
             elif u.path == "/api/job":
                 j = jobs[q["id"]]
                 self.send({**j, "results": [r for r in j["results"] if r["missing"] or r["note"]]})
@@ -272,10 +299,24 @@ class H(BaseHTTPRequestHandler):
                 clear_last()
                 self.send({"ok": True})
             elif u.path == "/api/last/remove":
+                # "Ausblenden": aus dem Ergebnis nehmen und dauerhaft ignorieren
+                title = data.get("title")
                 d = load_last()
-                d["results"] = [r for r in d["results"] if r["title"] != data.get("title")]
+                hit = [r for r in d["results"] if r["title"] == title]
+                rk = hit[0].get("rk") if hit else None
+                d["results"] = [r for r in d["results"] if r["title"] != title]
+                if rk:
+                    d["checked"] = [c for c in d.get("checked", []) if c != rk]
                 save_last(d)
-                self.send(d)
+                ign = load_ignored()
+                if not any(i["title"] == title for i in ign):
+                    ign.append({"title": title, "rk": rk})
+                    save_ignored(ign)
+                self.send(ign)
+            elif u.path == "/api/ignored/remove":
+                ign = [i for i in load_ignored() if i["title"] != data.get("title")]
+                save_ignored(ign)
+                self.send(ign)
             elif u.path == "/api/scan":
                 jid = uuid.uuid4().hex
                 jobs[jid] = {"state": "running", "total": 0, "done": 0, "current": "", "results": []}
