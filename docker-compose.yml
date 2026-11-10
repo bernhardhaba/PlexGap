@@ -1,0 +1,21 @@
+# PlexGap per Docker (z. B. Synology Container Manager, Portainer, docker compose up -d)
+# Beim ersten Start lädt der Container die App selbst von GitHub in den Ordner ./data.
+services:
+  plexgap:
+    image: python:3.12-slim
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        [ -f server.py ] || python -c "import urllib.request as u; [u.urlretrieve('https://raw.githubusercontent.com/bernhardhaba/PlexGap/main/'+f, f) for f in ('server.py','index.html','logo.webp')]"
+        exec python server.py
+    environment:
+      HOST: 0.0.0.0
+      HEADLESS: "1"
+      PLEXGAP_AUTOUPDATE: "1"
+    volumes:
+      - ./data:/app
+    ports:
+      - "8765:8765"
+    restart: unless-stopped

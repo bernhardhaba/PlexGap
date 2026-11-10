@@ -29,6 +29,23 @@ eintragen und auf „Prüfen“ klicken.
 die Installation). Daraus erzeugt man ein Einzel-Skript, indem man die Platzhalter `@@SERVER_PY@@`,
 `@@INDEX_HTML@@` und `@@INSTALL_SH@@` durch die Base64-Inhalte der jeweiligen Dateien ersetzt.
 
+## Docker / Synology
+
+Mit der mitgelieferten `docker-compose.yml` läuft PlexGap ohne weitere Installation:
+
+```bash
+docker compose up -d
+```
+
+Auf einer Synology (DSM 7.2 oder neuer): In **Container Manager → Projekt → Erstellen** einen Ordner
+wählen (z. B. `/volume1/docker/plexgap`), die `docker-compose.yml` dort ablegen bzw. einfügen und das
+Projekt starten. Beim ersten Start lädt der Container die App selbst von GitHub in den Unterordner `data`;
+Ergebnisse, Ausgeblendete und Verlauf liegen ebenfalls dort und bleiben bei Neustarts erhalten.
+Erreichbar unter `http://<Synology-IP>:8765`.
+
+Ohne Docker: im Paket-Zentrum „Python 3“ installieren und im Aufgabenplaner eine Aufgabe „Beim Hochfahren“
+anlegen: `cd /volume1/plexgap && HOST=0.0.0.0 HEADLESS=1 python3 server.py`.
+
 ## Automatisches Update
 
 Im LXC läuft PlexGap mit `PLEXGAP_AUTOUPDATE=1`: Beim Start und danach alle 6 Stunden prüft die App den
