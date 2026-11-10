@@ -15,7 +15,10 @@ h1{margin:0 0 16px}
 .brand img{display:block;height:auto;width:min(100%,460px);max-width:100%;object-fit:contain}
 button,select{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
 button.p{background:var(--acc);border-color:var(--acc);color:#111;font-weight:600;cursor:pointer}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
+.row{display:flex;gap:8px;flex-wrap:nowrap;margin:12px 0;align-items:center}
+.row button,.row select{white-space:nowrap;flex:0 0 auto;padding:8px 12px}
+.row #url{flex:1 1 120px;min-width:90px;width:0}
+@media(max-width:700px){.row{flex-wrap:wrap}.row #url{flex-basis:100%}}
 .bar{height:8px;background:var(--card);border-radius:4px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--acc);width:0}
 details{background:var(--card);border-radius:10px;margin:8px 0;padding:10px 14px;border-left:3px solid transparent}
@@ -70,7 +73,7 @@ a{color:var(--acc)}
 <p class="mut" id="loginMsg"></p></div>
 <div id="app" hidden>
   <div class="row">
-    <input id="url" placeholder="Serveradresse" size="26" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)">
+    <input id="url" placeholder="Serveradresse" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)">
     <select id="server"></select>
     <select id="lib"></select>
     <button class="p" id="btnScan">Prüfen</button>
