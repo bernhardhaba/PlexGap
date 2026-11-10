@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PlexGap</title>
 <style>
-:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70;--card:#f4f4f6;--acc:#e5a00d;--bd:#dcdce0}
-@media(prefers-color-scheme:dark){:root{--bg:#18181a;--fg:#ececee;--mut:#9a9aa0;--card:#252528;--bd:#38383c}}
+:root{--bg:#fff;--fg:#1c1c1e;--mut:#6b6b70;--card:#f4f4f6;--open:#fbf1da;--acc:#e5a00d;--bd:#dcdce0}
+@media(prefers-color-scheme:dark){:root{--bg:#18181a;--fg:#ececee;--mut:#9a9aa0;--card:#252528;--open:#33301f;--bd:#38383c}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
 main{max-width:760px;margin:0 auto;padding:24px 16px}
@@ -18,7 +18,9 @@ button.p{background:var(--acc);border-color:var(--acc);color:#111;font-weight:60
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;align-items:center}
 .bar{height:8px;background:var(--card);border-radius:4px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--acc);width:0}
-details{background:var(--card);border-radius:10px;margin:8px 0;padding:10px 14px}
+details{background:var(--card);border-radius:10px;margin:8px 0;padding:10px 14px;border-left:3px solid transparent}
+details[open]{background:var(--open);border-left-color:var(--acc)}
+.ignbox details[open]{background:transparent;border-left-color:transparent}
 summary{cursor:pointer;font-weight:600}
 summary span{color:var(--mut);font-weight:400}
 ul{margin:8px 0 0;padding-left:0;list-style:none}
