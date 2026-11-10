@@ -45,6 +45,7 @@ code{background:var(--bg);padding:1px 6px;border-radius:4px}
   <div id="out"></div>
   <div id="ign"></div>
 </div>
+<p class="mut" id="ver" style="margin-top:32px;font-size:.85em"></p>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -70,6 +71,23 @@ $('btnLogin').onclick=async()=>{
     $('loginMsg').textContent='Zeitüberschreitung, bitte erneut versuchen.';
   }catch(e){$('loginMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
 };
+async function showVersion(){
+  try{
+    const v=await api('/api/version');
+    $('ver').innerHTML=`Version ${esc(v.version||'unbekannt')} · Auto-Update: ${v.auto?'an':'aus'}${v.status?' · '+esc(v.status):''} · <a href="#" id="btnUpd">Nach Update suchen</a>`;
+    $('btnUpd').onclick=async e=>{
+      e.preventDefault();
+      if(!confirm('Neueste Version von GitHub laden? Eine laufende Prüfung wird dabei abgebrochen.')) return;
+      $('ver').textContent='Suche Update …';
+      try{
+        const r=await api('/api/update',{method:'POST'});
+        if(r.updated){$('ver').textContent='Aktualisiert, starte neu …';setTimeout(()=>location.reload(),4000)}
+        else showVersion();
+      }catch(err){$('ver').textContent='Update fehlgeschlagen: '+err.message}
+    };
+  }catch(e){}
+}
+showVersion();
 $('btnLogout').onclick=()=>{localStorage.removeItem('plexToken');token='';location.reload()};
 
 async function init(){

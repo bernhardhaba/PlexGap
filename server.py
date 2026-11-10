@@ -5,7 +5,11 @@ Nur Python-Standardbibliothek. Episodenlisten kommen von TVmaze (kein Key nötig
 import datetime
 import json
 import os
+import py_compile
+import shutil
 import ssl
+import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -233,6 +237,83 @@ def scan(job, token, machine_id, section, url="", resume=False):
         job["error"] = str(ex)
 
 
+# ---------- Selbst-Update von GitHub ----------
+REPO = "bernhardhaba/PlexGap"
+BRANCH = "main"
+VERSION_FILE = os.path.join(HERE, "version.json")
+AUTOUPDATE = os.environ.get("PLEXGAP_AUTOUPDATE") == "1"
+UPDATE_FILES = ("server.py", "index.html")
+update_state = {"status": "", "latest": None, "checked": None}
+
+
+def gh_get(url, timeout=20):
+    req = urllib.request.Request(url, headers={"User-Agent": "PlexGap"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def current_version():
+    try:
+        with open(VERSION_FILE, encoding="utf-8") as f:
+            return json.load(f)["sha"]
+    except Exception:
+        return None
+
+
+def restart_soon():
+    def _r():
+        time.sleep(1.5)
+        os.environ["HEADLESS"] = "1"  # nach dem Neustart keinen Browser öffnen
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    threading.Thread(target=_r, daemon=True).start()
+
+
+def do_update(auto=False):
+    """Holt die neueste Version von GitHub. Gibt True zurück, wenn aktualisiert wurde."""
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    if auto and any(j["state"] == "running" for j in jobs.values()):
+        return False  # laufende Prüfung nicht unterbrechen
+    sha = json.loads(gh_get(f"https://api.github.com/repos/{REPO}/commits/{BRANCH}"))["sha"]
+    update_state.update(latest=sha, checked=now)
+    if sha == current_version():
+        update_state["status"] = "Aktuell"
+        return False
+    files = {n: gh_get(f"https://raw.githubusercontent.com/{REPO}/{sha}/{n}") for n in UPDATE_FILES}
+    # Plausibilitätsprüfung, bevor etwas überschrieben wird
+    if b"ThreadingHTTPServer" not in files["server.py"] or b"PlexGap" not in files["index.html"]:
+        raise RuntimeError("Heruntergeladene Dateien sehen nicht richtig aus")
+    tmpdir = tempfile.mkdtemp()
+    try:
+        tmp = os.path.join(tmpdir, "check.py")
+        with open(tmp, "wb") as f:
+            f.write(files["server.py"])
+        py_compile.compile(tmp, cfile=os.path.join(tmpdir, "check.pyc"), doraise=True)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    for name, data in files.items():
+        path = os.path.join(HERE, name)
+        if os.path.exists(path):
+            shutil.copy2(path, path + ".bak")
+        with open(path + ".new", "wb") as f:
+            f.write(data)
+        os.replace(path + ".new", path)
+    with open(VERSION_FILE, "w", encoding="utf-8") as f:
+        json.dump({"sha": sha, "updated": now}, f)
+    update_state["status"] = "Aktualisiert, starte neu …"
+    restart_soon()
+    return True
+
+
+def updater_loop():
+    time.sleep(10)
+    while True:
+        try:
+            do_update(auto=True)
+        except Exception as ex:
+            update_state["status"] = f"Update-Prüfung fehlgeschlagen: {ex}"
+        time.sleep(6 * 3600)
+
+
 # ---------- HTTP ----------
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -270,6 +351,10 @@ class H(BaseHTTPRequestHandler):
                 self.send([{"key": s["key"], "title": s["title"]} for s in secs if s["type"] == "show"])
             elif u.path == "/api/last":
                 self.send(load_last())
+            elif u.path == "/api/version":
+                v = current_version()
+                self.send({"version": v[:7] if v else None, "auto": AUTOUPDATE,
+                           "status": update_state["status"], "checked": update_state["checked"]})
             elif u.path == "/api/ignored":
                 self.send(load_ignored())
             elif u.path == "/api/job":
@@ -291,6 +376,13 @@ class H(BaseHTTPRequestHandler):
                 url = ("https://app.plex.tv/auth#?clientID=" + CID + "&code=" + r["code"] +
                        "&context%5Bdevice%5D%5Bproduct%5D=" + PRODUCT)
                 self.send({"id": r["id"], "code": r["code"], "url": url})
+            elif u.path == "/api/update":
+                try:
+                    updated = do_update()
+                except Exception as ex:
+                    update_state["status"] = f"Update fehlgeschlagen: {ex}"
+                    updated = False
+                self.send({"updated": updated, "status": update_state["status"]})
             elif u.path == "/api/stop":
                 if data.get("id") in jobs:
                     jobs[data["id"]]["cancel"] = True
@@ -336,4 +428,6 @@ if __name__ == "__main__":
     print(f"Läuft auf http://{host}:{PORT}  (Strg+C beendet)", flush=True)
     if not os.environ.get("HEADLESS"):
         webbrowser.open(f"http://localhost:{PORT}")
+    if AUTOUPDATE:
+        threading.Thread(target=updater_loop, daemon=True).start()
     srv.serve_forever()

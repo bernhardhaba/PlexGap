@@ -27,6 +27,14 @@ eintragen und auf „Prüfen“ klicken.
 die Installation). Daraus erzeugt man ein Einzel-Skript, indem man die Platzhalter `@@SERVER_PY@@`,
 `@@INDEX_HTML@@` und `@@INSTALL_SH@@` durch die Base64-Inhalte der jeweiligen Dateien ersetzt.
 
+## Automatisches Update
+
+Im LXC läuft PlexGap mit `PLEXGAP_AUTOUPDATE=1`: Beim Start und danach alle 6 Stunden prüft die App den
+Branch `main` dieses Repos und lädt `server.py` und `index.html` bei Änderungen selbst nach (mit
+Plausibilitätsprüfung, Sicherung als `*.bak`, anschließendem Neustart; laufende Prüfungen werden nicht
+unterbrochen). Lokal ist das Auto-Update aus; unten auf der Seite gibt es „Nach Update suchen“.
+Das Repo muss dafür öffentlich sein. Wer in `main` pushen darf, bestimmt damit, was im Container läuft.
+
 ## Hinweis
 
 Die Seite hat keinen eigenen Passwortschutz. Nicht ungeschützt aus dem Internet erreichbar machen.

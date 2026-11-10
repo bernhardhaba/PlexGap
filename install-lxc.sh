@@ -20,6 +20,7 @@ Wants=network-online.target
 WorkingDirectory=/opt/plexgap
 Environment=HOST=0.0.0.0
 Environment=HEADLESS=1
+Environment=PLEXGAP_AUTOUPDATE=1
 ExecStart=/usr/bin/python3 /opt/plexgap/server.py
 Restart=always
 
