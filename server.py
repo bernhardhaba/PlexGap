@@ -319,6 +319,7 @@ BRANCH = "main"
 VERSION_FILE = os.path.join(HERE, "version.json")
 AUTOUPDATE = os.environ.get("PLEXGAP_AUTOUPDATE") == "1"
 UPDATE_FILES = ("server.py", "index.html")
+OPTIONAL_FILES = ("logo.webp",)
 update_state = {"status": "", "latest": None, "checked": None}
 
 
@@ -355,6 +356,11 @@ def do_update(auto=False):
         update_state["status"] = "Aktuell"
         return False
     files = {n: gh_get(f"https://raw.githubusercontent.com/{REPO}/{sha}/{n}") for n in UPDATE_FILES}
+    for n in OPTIONAL_FILES:  # z. B. Logo: fehlt es im Repo, wird das Update trotzdem durchgeführt
+        try:
+            files[n] = gh_get(f"https://raw.githubusercontent.com/{REPO}/{sha}/{n}")
+        except Exception:
+            pass
     # Plausibilitätsprüfung, bevor etwas überschrieben wird
     if b"ThreadingHTTPServer" not in files["server.py"] or b"PlexGap" not in files["index.html"]:
         raise RuntimeError("Heruntergeladene Dateien sehen nicht richtig aus")
@@ -412,6 +418,14 @@ class H(BaseHTTPRequestHandler):
                 body = open(os.path.join(HERE, "index.html"), "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif u.path == "/logo.webp":
+                body = open(os.path.join(HERE, "logo.webp"), "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/webp")
+                self.send_header("Cache-Control", "max-age=3600")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)

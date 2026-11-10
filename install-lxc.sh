@@ -9,6 +9,7 @@ apt-get install -y python3
 
 mkdir -p "$APP"
 cp server.py index.html "$APP/"
+[ -f logo.webp ] && cp logo.webp "$APP/" || true
 
 cat > /etc/systemd/system/plexgap.service <<'EOF'
 [Unit]

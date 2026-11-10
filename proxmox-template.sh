@@ -26,6 +26,9 @@ EOF_SERVER
 base64 -d > "$TMP/index.html" <<'EOF_INDEX'
 @@INDEX_HTML@@
 EOF_INDEX
+base64 -d > "$TMP/logo.webp" <<'EOF_LOGO'
+@@LOGO@@
+EOF_LOGO
 base64 -d > "$TMP/install-lxc.sh" <<'EOF_INSTALL'
 @@INSTALL_SH@@
 EOF_INSTALL
@@ -50,7 +53,7 @@ for i in $(seq 1 30); do
 done
 
 pct exec "$CTID" -- mkdir -p /root/plexgap
-for f in server.py index.html install-lxc.sh; do
+for f in server.py index.html logo.webp install-lxc.sh; do
   pct push "$CTID" "$TMP/$f" "/root/plexgap/$f"
 done
 pct exec "$CTID" -- bash -c 'cd /root/plexgap && bash install-lxc.sh'
