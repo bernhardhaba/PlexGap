@@ -227,7 +227,8 @@ function showStats(j){
   if(!agg.n&&!res.length){$('stats').innerHTML='';return}
   const nSeries=Math.max(agg.n,gaps.length);
   const eps=gaps.reduce((a,r)=>a+r.missing.length,0);
-  const complete=nSeries-gaps.length;
+  const hid=Math.min(agg.ign||0,Math.max(nSeries-gaps.length,0));
+  const complete=nSeries-gaps.length-hid;
   const pct=n=>nSeries?n/nSeries*100:0;
   // Folgen insgesamt
   const total=agg.total,have=Math.max(total-eps,0),epPct=total?have/total*100:null;
@@ -276,8 +277,8 @@ function showStats(j){
     ${epPct!==null?`<h3>Vollständigkeit der Folgen</h3><div class="split" role="img" aria-label="${num(have)} von ${num(total)} Folgen vorhanden"><i style="width:${epPct}%;background:var(--ok)"></i></div>
     <div class="legend"><span>${num(have)} von ${num(total)} ausgestrahlten Folgen vorhanden</span></div>`:''}
     <h3>Vollständigkeit der Serien</h3>
-    <div class="split" role="img" aria-label="${complete} vollständig, ${gaps.length} mit Lücken"><i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(gaps.length)}%;background:var(--acc)"></i></div>
-    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span><span><em style="background:var(--acc)"></em>Mit Lücken ${gaps.length} (${Math.round(pct(gaps.length))} %)</span></div>
+    <div class="split" role="img" aria-label="${complete} vollständig, ${gaps.length} mit Lücken"><i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(gaps.length)}%;background:var(--acc)"></i><i style="width:${pct(hid)}%;background:var(--mut);opacity:.5"></i></div>
+    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span><span><em style="background:var(--acc)"></em>Mit Lücken ${gaps.length} (${Math.round(pct(gaps.length))} %)</span>${hid?`<span><em style="background:var(--mut);opacity:.5"></em>Ausgeblendet ${hid}</span>`:''}</div>
     ${almost.length?`<h3>Fast fertig – höchstens 3 Folgen fehlen (${almost.length})</h3><div class="chips">${almost.slice(0,12).map(r=>`<span class="chip">${esc(r.title)} <b>${r.missing.length}</b></span>`).join('')}${almost.length>12?`<span class="chip mut">+${almost.length-12} weitere</span>`:''}</div>`:''}
     ${hasFs?`<h3>Ganze Staffeln oder einzelne Lücken?</h3>
     <div class="split"><i style="width:${pctG(fullS)}%;background:#d6584b"></i><i style="width:${pctG(onlyGaps)}%;background:var(--acc)"></i></div>

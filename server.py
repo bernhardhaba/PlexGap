@@ -187,15 +187,16 @@ def save_history(h):
 
 def agg_of(shows, ign_rk):
     """Summen über alle geprüften Serien (ohne dauerhaft ausgeblendete)."""
-    n = t = b = bn = 0
+    n = t = b = bn = ig = 0
     for rk, s in list(shows.items()):
+        n += 1  # ausgeblendete Serien zählen als geprüft ...
         if rk in ign_rk:
-            continue
-        n += 1
+            ig += 1
+            continue  # ... fließen aber nicht in Folgen- und Speichersummen ein
         t += s.get("t", 0)
         b += s.get("b", 0)
         bn += s.get("n", 0)
-    return {"n": n, "total": t, "bytes": b, "files": bn}
+    return {"n": n, "total": t, "bytes": b, "files": bn, "ign": ig}
 
 
 def record_history(section, agg, results):
@@ -239,7 +240,8 @@ def scan(job, token, machine_id, section, url="", resume=False):
                 break
             rk = str(s["ratingKey"])
             if rk in ign_rk or s["title"] in ign_titles:
-                job["done"] += 1  # dauerhaft ausgeblendet
+                job["done"] += 1  # dauerhaft ausgeblendet, zählt aber als geprüft
+                shows_stats.setdefault(rk, {"t": 0, "b": 0, "n": 0})
                 continue
             if rk in checked:
                 job["done"] += 1
