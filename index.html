@@ -28,7 +28,7 @@ a{color:var(--acc)}
 .stats h2{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
 .stats{--ok:#3aa76d}
 .tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
-@media(min-width:560px){.tiles{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:560px){.tiles{grid-template-columns:repeat(3,1fr)}}
 .tile{background:var(--bg);border-radius:8px;padding:10px 12px}
 .tile b{display:block;font-size:1.6em;line-height:1.2}
 .tile span{color:var(--mut);font-size:.82em}
@@ -41,7 +41,15 @@ a{color:var(--acc)}
 .top .bar2{height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
 .top .bar2 i{display:block;height:100%;background:var(--acc);border-radius:5px}
 .top .c{font-weight:600;text-align:right}
-.stats h3{font-size:.8em;color:var(--mut);margin:0 0 6px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{background:var(--bg);border-radius:14px;padding:2px 10px;font-size:.85em}
+.chip b{color:var(--acc);margin-left:4px}
+.cols{display:flex;gap:4px;align-items:flex-end;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
+.col{display:flex;flex-direction:column;align-items:center;min-width:18px;flex:1}
+.col b{font-size:.7em;color:var(--mut);font-weight:400}
+.col i{display:block;width:100%;max-width:34px;background:var(--acc);border-radius:3px 3px 0 0}
+.col span{font-size:.7em;color:var(--mut);margin-top:3px}
+.stats h3{margin-top:14px !important;font-size:.8em;color:var(--mut);margin:0 0 6px;font-weight:600}
 .ignbox{margin-top:36px;padding-top:20px;border-top:2px solid var(--bd)}
 .ignbox h2{font-size:.8em;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
 .ignbox details{background:transparent;border:1px dashed var(--bd)}
@@ -182,6 +190,7 @@ $('ign').onclick=async e=>{
 async function showLast(){
   showIgnored();
   const d=await api('/api/last');
+  try{hist=await api('/api/history')}catch(e){}
   last=d;updateScanBtn();
   render(d,true);
   $('btnClear').hidden=!d.results.length;
@@ -197,41 +206,89 @@ $('out').onclick=async e=>{
   await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});
   if(scanning) showIgnored(); else showLast(); // im Lauf aktualisiert die Abfrage die Liste selbst
 };
-function fmtTime(min){
-  const h=Math.floor(min/60),m=Math.round(min%60);
-  let s=h?`${h} Std. ${m} Min.`:`${m} Min.`;
-  if(h>=24) s+=` (≈ ${(min/1440).toFixed(1).replace('.',',')} Tage)`;
-  return s;
+let hist=[],lastStatsJ=null;
+const num=n=>Number(n).toLocaleString('de-DE');
+function fmtSize(b){
+  const gb=b/1e9;
+  if(gb>=1000) return (gb/1000).toFixed(2).replace('.',',')+' TB';
+  if(gb>=10) return Math.round(gb)+' GB';
+  return gb.toFixed(1).replace('.',',')+' GB';
 }
-function showStats(results,checked){
-  if(!checked&&!results.length){$('stats').innerHTML='';return}
-  const withMissing=results.filter(r=>r.missing.length);
-  const eps=withMissing.reduce((a,r)=>a+r.missing.length,0);
-  let min=0,unknown=0;
-  withMissing.forEach(r=>r.missing.forEach(m=>{if(m.rt)min+=m.rt;else unknown++}));
-  const total=Math.max(checked,withMissing.length);
-  const complete=total-withMissing.length;
-  const pct=n=>total?(n/total*100):0;
-  const top=[...withMissing].sort((a,b)=>b.missing.length-a.missing.length).slice(0,5);
+function showStats(j){
+  lastStatsJ=j;
+  const agg=j.agg||{n:0,total:0,bytes:0,files:0};
+  const res=j.results||[];
+  const gaps=res.filter(r=>r.missing.length);
+  const notes=res.filter(r=>r.note);
+  if(!agg.n&&!res.length){$('stats').innerHTML='';return}
+  const nSeries=Math.max(agg.n,gaps.length);
+  const eps=gaps.reduce((a,r)=>a+r.missing.length,0);
+  const complete=nSeries-gaps.length;
+  const pct=n=>nSeries?n/nSeries*100:0;
+  // Folgen insgesamt
+  const total=agg.total,have=Math.max(total-eps,0),epPct=total?have/total*100:null;
+  // Speicherbedarf: durchschnittliche Dateigröße der vorhandenen Folgen
+  const globalBpe=agg.files?agg.bytes/agg.files:0;
+  const size=gaps.reduce((a,r)=>a+r.missing.length*(r.bpe||globalBpe),0);
+  // Alter der Lücken
+  const lim=new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+  const byYear={};let recent=0;
+  gaps.forEach(r=>r.missing.forEach(m=>{const y=m.airdate.slice(0,4);byYear[y]=(byYear[y]||0)+1;if(m.airdate>=lim)recent++}));
+  const years=Object.keys(byYear).sort(),maxY=Math.max(1,...years.map(y=>byYear[y]));
+  // Fast fertig
+  const almost=gaps.filter(r=>r.missing.length<=3).sort((a,b)=>a.missing.length-b.missing.length||a.title.localeCompare(b.title));
+  // Ganze Staffeln
+  const hasFs=gaps.length>0&&gaps.every(r=>r.fs!==undefined);
+  const fullS=gaps.filter(r=>r.fs>0).length,onlyGaps=gaps.length-fullS;
+  const pctG=n=>gaps.length?n/gaps.length*100:0;
+  // Rangliste
+  const top=[...gaps].sort((a,b)=>b.missing.length-a.missing.length).slice(0,5);
   const maxEp=top.length?top[0].missing.length:1;
+  // Verlauf
+  let trend='';
+  if(hist.length){
+    const last=hist[hist.length-1];
+    let sp='';
+    if(hist.length>=2){
+      const vals=hist.map(h=>h.episodes),mx=Math.max(...vals,1),mn=Math.min(...vals);
+      const pts=vals.map((v,i)=>[4+i*(192/(vals.length-1)),mx===mn?22:38-((v-mn)/(mx-mn))*32]);
+      sp=`<svg viewBox="0 0 200 44" width="100%" height="44" role="img" aria-label="Verlauf der fehlenden Folgen"><polyline fill="none" stroke="var(--acc)" stroke-width="2" points="${pts.map(p=>p.join(',')).join(' ')}"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3.5" fill="var(--acc)"/></svg>`;
+    }
+    const d=new Date(last.date).toLocaleDateString('de-DE');
+    const delta=last.closed!==undefined
+      ?`Seit der Prüfung davor: <b>${num(last.closed)}</b> Folgen geschlossen, <b>${num(last.new)}</b> neu hinzugekommen.`
+      :'Erste Prüfung im Verlauf – ab der nächsten siehst du Veränderungen.';
+    trend=`<h3>Verlauf (${hist.length} Prüfung${hist.length>1?'en':''}, zuletzt ${d})</h3>${sp}<div class="mut" style="font-size:.88em">${delta} <a href="#" id="histClear">Verlauf löschen</a></div>`;
+  }
   $('stats').innerHTML=`<div class="stats"><h2>Statistik</h2>
     <div class="tiles">
-      <div class="tile"><b>${total}</b><span>Serien geprüft</span></div>
-      <div class="tile"><b>${withMissing.length}</b><span>mit fehlenden Folgen</span></div>
-      <div class="tile"><b>${eps}</b><span>Folgen fehlen gesamt</span></div>
-      <div class="tile"><b style="font-size:1.25em;line-height:1.55">${fmtTime(min)}</b><span>Fernsehzeit zu laden</span></div>
+      <div class="tile"><b>${num(nSeries)}</b><span>Serien geprüft</span></div>
+      <div class="tile"><b>${num(gaps.length)}</b><span>mit fehlenden Folgen</span></div>
+      <div class="tile"><b>${num(eps)}</b><span>Folgen fehlen gesamt</span></div>
+      <div class="tile"><b>${epPct===null?'–':epPct.toFixed(1).replace('.',',')+' %'}</b><span>aller Folgen vorhanden</span></div>
+      <div class="tile"><b>${size?'≈ '+fmtSize(size):'–'}</b><span>Speicher zu laden (geschätzt)</span></div>
+      <div class="tile"><b>${num(recent)}</b><span>neu (letzte 30 Tage)</span></div>
     </div>
+    ${epPct!==null?`<h3>Vollständigkeit der Folgen</h3><div class="split" role="img" aria-label="${num(have)} von ${num(total)} Folgen vorhanden"><i style="width:${epPct}%;background:var(--ok)"></i></div>
+    <div class="legend"><span>${num(have)} von ${num(total)} ausgestrahlten Folgen vorhanden</span></div>`:''}
     <h3>Vollständigkeit der Serien</h3>
-    <div class="split" role="img" aria-label="${complete} vollständig, ${withMissing.length} mit Lücken">
-      <i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(withMissing.length)}%;background:var(--acc)"></i></div>
-    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span>
-      <span><em style="background:var(--acc)"></em>Mit Lücken ${withMissing.length} (${Math.round(pct(withMissing.length))} %)</span></div>
-    ${top.length?`<h3>Die meisten fehlenden Folgen</h3><div class="top">${top.map(r=>
-      `<span class="n" title="${esc(r.title)}">${esc(r.title)}</span><div class="bar2"><i style="width:${r.missing.length/maxEp*100}%"></i></div><span class="c">${r.missing.length}</span>`).join('')}</div>`:''}
-    ${unknown?`<div class="mut" style="margin-top:10px;font-size:.85em">Für ${unknown} Folgen ist die Laufzeit unbekannt und nicht eingerechnet.</div>`:''}</div>`;
+    <div class="split" role="img" aria-label="${complete} vollständig, ${gaps.length} mit Lücken"><i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(gaps.length)}%;background:var(--acc)"></i></div>
+    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span><span><em style="background:var(--acc)"></em>Mit Lücken ${gaps.length} (${Math.round(pct(gaps.length))} %)</span></div>
+    ${almost.length?`<h3>Fast fertig – höchstens 3 Folgen fehlen (${almost.length})</h3><div class="chips">${almost.slice(0,12).map(r=>`<span class="chip">${esc(r.title)} <b>${r.missing.length}</b></span>`).join('')}${almost.length>12?`<span class="chip mut">+${almost.length-12} weitere</span>`:''}</div>`:''}
+    ${hasFs?`<h3>Ganze Staffeln oder einzelne Lücken?</h3>
+    <div class="split"><i style="width:${pctG(fullS)}%;background:#d6584b"></i><i style="width:${pctG(onlyGaps)}%;background:var(--acc)"></i></div>
+    <div class="legend"><span><em style="background:#d6584b"></em>Ganze Staffel fehlt ${fullS}</span><span><em style="background:var(--acc)"></em>Nur einzelne Lücken ${onlyGaps}</span></div>`:''}
+    ${top.length?`<h3>Die meisten fehlenden Folgen</h3><div class="top">${top.map(r=>`<span class="n" title="${esc(r.title)}">${esc(r.title)}</span><div class="bar2"><i style="width:${r.missing.length/maxEp*100}%"></i></div><span class="c">${r.missing.length}</span>`).join('')}</div>`:''}
+    ${years.length?`<h3>Alter der Lücken (nach Ausstrahlungsjahr)</h3><div class="cols">${years.map(y=>`<div class="col" title="${y}: ${byYear[y]} Folgen"><b>${byYear[y]}</b><i style="height:${Math.max(4,byYear[y]/maxY*70)}px"></i><span>${years.length>8?"'"+y.slice(2):y}</span></div>`).join('')}</div>`:''}
+    ${trend}
+    ${notes.length?`<h3>Datenqualität</h3><div class="mut" style="font-size:.88em">${notes.length} Serie${notes.length>1?'n':''} mit Hinweis (Zählung unsicher): ${notes.slice(0,6).map(r=>esc(r.title)).join(', ')}${notes.length>6?' …':''}</div>`:''}
+  </div>`;
+  const hc=$('histClear');
+  if(hc) hc.onclick=async e=>{e.preventDefault();if(!confirm('Verlauf der Prüfungen löschen?'))return;
+    await api('/api/history/clear',{method:'POST'});hist=[];showStats(lastStatsJ)};
 }
 function render(j,deletable){
-  showStats(j.results,Array.isArray(j.checked)?j.checked.length:(j.done||0));
+  showStats(j);
   const open=new Set([...document.querySelectorAll('details[open]')].map(d=>d.dataset.t));
   const rs=[...j.results].sort((a,b)=>a.title.localeCompare(b.title));
   $('out').innerHTML=rs.map(r=>{

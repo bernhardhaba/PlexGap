@@ -6,3 +6,4 @@ ignored.json
 version.json
 *.bak
 *.new
+history.json

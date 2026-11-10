@@ -166,6 +166,54 @@ def save_ignored(items):
             json.dump(items, f, ensure_ascii=False)
 
 
+# ---------- Statistik / Verlauf ----------
+HISTORY_FILE = os.path.join(HERE, "history.json")
+
+
+def load_history():
+    with _lock:
+        try:
+            with open(HISTORY_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {"snapshots": [], "last_keys": [], "last_section": None}
+
+
+def save_history(h):
+    with _lock:
+        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(h, f, ensure_ascii=False)
+
+
+def agg_of(shows, ign_rk):
+    """Summen über alle geprüften Serien (ohne dauerhaft ausgeblendete)."""
+    n = t = b = bn = 0
+    for rk, s in list(shows.items()):
+        if rk in ign_rk:
+            continue
+        n += 1
+        t += s.get("t", 0)
+        b += s.get("b", 0)
+        bn += s.get("n", 0)
+    return {"n": n, "total": t, "bytes": b, "files": bn}
+
+
+def record_history(section, agg, results):
+    h = load_history()
+    keys = sorted(f'{r["title"]}|{m["s"]}|{m["e"]}' for r in results for m in r["missing"])
+    snap = {"date": datetime.datetime.now().isoformat(timespec="seconds"), "section": section,
+            "series": agg["n"], "with_missing": sum(1 for r in results if r["missing"]),
+            "episodes": len(keys), "total": agg["total"]}
+    if h.get("snapshots") and h.get("last_section") == section:
+        old, new = set(h.get("last_keys", [])), set(keys)
+        snap["closed"] = len(old - new)
+        snap["new"] = len(new - old)
+    h["snapshots"] = (h.get("snapshots", []) + [snap])[-30:]
+    h["last_keys"] = keys
+    h["last_section"] = section
+    save_history(h)
+
+
 # ---------- Scan-Job ----------
 jobs = {}
 
@@ -176,6 +224,8 @@ def scan(job, token, machine_id, section, url="", resume=False):
         if prev.get("section") != section:
             prev = {}  # anderes Ergebnis/andere Bibliothek: von vorn beginnen
         checked = set(prev.get("checked", []))
+        shows_stats = dict(prev.get("shows", {}))  # pro Serie: Folgen gesamt, Dateigröße
+        job["shows"] = shows_stats
         ign = load_ignored()
         ign_rk = {i["rk"] for i in ign if i.get("rk")}
         ign_titles = {i["title"] for i in ign}
@@ -201,7 +251,12 @@ def scan(job, token, machine_id, section, url="", resume=False):
                 guids = [g["id"] for g in s.get("Guid", [])]
                 leaves = plex_get(conn, f"/library/metadata/{s['ratingKey']}/allLeaves")["MediaContainer"].get("Metadata", [])
                 have = set()
+                have_bytes = have_n = total = 0
                 for l in leaves:
+                    part = ((l.get("Media") or [{}])[0].get("Part") or [{}])[0]
+                    if part.get("size"):
+                        have_bytes += part["size"]
+                        have_n += 1
                     se, ep = l.get("parentIndex"), l.get("index")
                     if se is None or ep is None:
                         continue
@@ -209,24 +264,31 @@ def scan(job, token, machine_id, section, url="", resume=False):
                         have.add((se, n))
                 show = tvmaze_find(s["title"], guids)
                 tid = show["id"] if show else None
-                avg = (show or {}).get("averageRuntime") or (show or {}).get("runtime")
                 if tid is None:
                     entry["note"] = "Serie bei TVmaze nicht gefunden"
                 else:
                     time.sleep(0.15)
+                    per_season = {}
                     for e in tvmaze_episodes(tid):
                         if not e.get("number") or e["season"] < 1:
                             continue  # Specials ignorieren
                         if not e.get("airdate") or e["airdate"] > today:
                             continue  # noch nicht ausgestrahlt
+                        total += 1
+                        ps = per_season.setdefault(e["season"], [0, 0])
+                        ps[0] += 1
                         if (e["season"], e["number"]) not in have:
+                            ps[1] += 1
                             entry["missing"].append({"s": e["season"], "e": e["number"],
-                                                     "name": e.get("name", ""), "airdate": e["airdate"],
-                                                     "rt": e.get("runtime") or avg or 0})
+                                                     "name": e.get("name", ""), "airdate": e["airdate"]})
+                    entry["fs"] = sum(1 for t_, m_ in per_season.values() if m_ == t_)  # ganze Staffeln fehlen
+                entry["total"] = total
+                entry["bpe"] = (have_bytes / have_n) if have_n else 0  # Bytes pro vorhandener Folge
             except Exception as ex:
                 entry["note"] = f"Fehler: {ex}"
             else:
                 checked.add(rk)  # Fehlerhafte Serien werden beim Fortsetzen erneut versucht
+                shows_stats[rk] = {"t": total, "b": have_bytes, "n": have_n}
             job["results"].append(entry)
             job["done"] += 1
         # Während des Laufs ausgeblendete Serien nicht wieder ins Ergebnis schreiben
@@ -235,11 +297,16 @@ def scan(job, token, machine_id, section, url="", resume=False):
         ign_titles = {i["title"] for i in ign}
         job["results"] = [r for r in job["results"] if r["title"] not in ign_titles]
         checked -= ign_rk
+        final = [r for r in job["results"] if r["missing"] or r["note"]]
+        complete = job["done"] >= job["total"]
         save_last({"date": datetime.datetime.now().isoformat(timespec="seconds"),
                    "section": section,
                    "checked": sorted(checked),
-                   "partial": f"{job['done']}/{job['total']}" if job["done"] < job["total"] else None,
-                   "results": [r for r in job["results"] if r["missing"] or r["note"]]})
+                   "shows": shows_stats,
+                   "partial": None if complete else f"{job['done']}/{job['total']}",
+                   "results": final})
+        if complete and not prev:  # nur komplette Neu-Prüfungen im Verlauf festhalten
+            record_history(section, agg_of(shows_stats, ign_rk), final)
         job["state"] = "done"
     except Exception as ex:
         job["state"] = "error"
@@ -359,7 +426,13 @@ class H(BaseHTTPRequestHandler):
                 secs = plex_get(conn, "/library/sections")["MediaContainer"].get("Directory", [])
                 self.send([{"key": s["key"], "title": s["title"]} for s in secs if s["type"] == "show"])
             elif u.path == "/api/last":
-                self.send(load_last())
+                d = load_last()
+                ign_rk = {i["rk"] for i in load_ignored() if i.get("rk")}
+                d["agg"] = agg_of(d.get("shows", {}), ign_rk)
+                d.pop("shows", None)
+                self.send(d)
+            elif u.path == "/api/history":
+                self.send(load_history()["snapshots"])
             elif u.path == "/api/version":
                 v = current_version()
                 self.send({"version": v[:7] if v else None, "auto": AUTOUPDATE,
@@ -368,9 +441,13 @@ class H(BaseHTTPRequestHandler):
                 self.send(load_ignored())
             elif u.path == "/api/job":
                 j = jobs[q["id"]]
-                hidden = {i["title"] for i in load_ignored()}
-                self.send({**j, "results": [r for r in j["results"]
-                                            if (r["missing"] or r["note"]) and r["title"] not in hidden]})
+                ign = load_ignored()
+                hidden = {i["title"] for i in ign}
+                body = {k: v for k, v in j.items() if k not in ("shows", "results")}
+                body["results"] = [r for r in j["results"]
+                                   if (r["missing"] or r["note"]) and r["title"] not in hidden]
+                body["agg"] = agg_of(j.get("shows", {}), {i["rk"] for i in ign if i.get("rk")})
+                self.send(body)
             else:
                 self.send({"error": "not found"}, 404)
         except Exception as ex:
@@ -394,6 +471,10 @@ class H(BaseHTTPRequestHandler):
                     update_state["status"] = f"Update fehlgeschlagen: {ex}"
                     updated = False
                 self.send({"updated": updated, "status": update_state["status"]})
+            elif u.path == "/api/history/clear":
+                if os.path.exists(HISTORY_FILE):
+                    os.remove(HISTORY_FILE)
+                self.send({"ok": True})
             elif u.path == "/api/stop":
                 if data.get("id") in jobs:
                     jobs[data["id"]]["cancel"] = True
