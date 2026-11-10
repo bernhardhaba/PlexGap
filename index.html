@@ -116,7 +116,7 @@ async function loadLibs(){
 }
 $('btnScan').onclick=async()=>{
   if(!$('lib').value) return;
-  const resume=canResume();
+  const resume=canResume();scanning=true;
   if(!resume) $('out').innerHTML='';
   $('barWrap').hidden=false;$('btnScan').disabled=true;
   const {id}=await api('/api/scan',{method:'POST',body:JSON.stringify({url:$('url').value,section:$('lib').value,resume})});
@@ -127,16 +127,17 @@ $('btnScan').onclick=async()=>{
     const j=await api('/api/job?id='+id);
     $('bar').style.width=(j.total?j.done/j.total*100:0)+'%';
     $('status').textContent=j.state==='error'?'':`${j.done}/${j.total} – ${j.current}`;
-    render(j);
+    render(j,true);
     if(j.state==='error'){$('status').innerHTML='<span class="err">'+esc(j.error)+'</span>';break}
     if(j.state==='done'){
       const n=j.results.filter(r=>r.missing.length).length;
       await showLast();break}
     await new Promise(r=>setTimeout(r,1000));
   }
+  scanning=false;
   $('btnScan').disabled=false;$('barWrap').hidden=true;$('btnStop').hidden=true;
 };
-let last=null;
+let last=null,scanning=false;
 const canResume=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
 const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':'Prüfen'};
 $('lib').onchange=updateScanBtn;
@@ -168,7 +169,8 @@ $('btnClear').onclick=async()=>{
 $('out').onclick=async e=>{
   const b=e.target.closest('button[data-del]'); if(!b) return;
   e.preventDefault();
-  await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});showLast();
+  await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});
+  if(scanning) showIgnored(); else showLast(); // im Lauf aktualisiert die Abfrage die Liste selbst
 };
 function render(j,deletable){
   const open=new Set([...document.querySelectorAll('details[open]')].map(d=>d.dataset.t));

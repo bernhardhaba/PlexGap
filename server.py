@@ -226,6 +226,12 @@ def scan(job, token, machine_id, section, url="", resume=False):
                 checked.add(rk)  # Fehlerhafte Serien werden beim Fortsetzen erneut versucht
             job["results"].append(entry)
             job["done"] += 1
+        # Während des Laufs ausgeblendete Serien nicht wieder ins Ergebnis schreiben
+        ign = load_ignored()
+        ign_rk = {i["rk"] for i in ign if i.get("rk")}
+        ign_titles = {i["title"] for i in ign}
+        job["results"] = [r for r in job["results"] if r["title"] not in ign_titles]
+        checked -= ign_rk
         save_last({"date": datetime.datetime.now().isoformat(timespec="seconds"),
                    "section": section,
                    "checked": sorted(checked),
@@ -359,7 +365,9 @@ class H(BaseHTTPRequestHandler):
                 self.send(load_ignored())
             elif u.path == "/api/job":
                 j = jobs[q["id"]]
-                self.send({**j, "results": [r for r in j["results"] if r["missing"] or r["note"]]})
+                hidden = {i["title"] for i in load_ignored()}
+                self.send({**j, "results": [r for r in j["results"]
+                                            if (r["missing"] or r["note"]) and r["title"] not in hidden]})
             else:
                 self.send({"error": "not found"}, 404)
         except Exception as ex:
