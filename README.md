@@ -54,6 +54,15 @@ Plausibilitätsprüfung, Sicherung als `*.bak`, anschließendem Neustart; laufen
 unterbrochen). Lokal ist das Auto-Update aus; unten auf der Seite gibt es „Nach Update suchen“.
 Das Repo muss dafür öffentlich sein. Wer in `main` pushen darf, bestimmt damit, was im Container läuft.
 
+## Datenschutz
+
+PlexGap läuft komplett bei dir und sendet keine Daten an den Entwickler. Es gibt kein Tracking und keine Statistik.
+
+- **Plex:** Die Anmeldung läuft über `plex.tv` (PIN-Login), die Bibliothek liest die App von deinem Plex-Server.
+- **TVmaze:** Zum Abgleich werden Serientitel bzw. IDs (TVDB/IMDb) an `api.tvmaze.com` gesendet.
+- **GitHub:** Das Auto-Update fragt `github.com` ab (dabei sieht GitHub die IP-Adresse deiner Installation). Ohne `PLEXGAP_AUTOUPDATE=1` passiert das nur auf Knopfdruck.
+- **Speicherung:** Der Plex-Token liegt im Browser (`localStorage`), Ergebnisse, Ausgeblendete und Verlauf als Dateien im App-Ordner auf deinem Server.
+
 ## Hinweis
 
 Die Seite hat keinen eigenen Passwortschutz. Nicht ungeschützt aus dem Internet erreichbar machen.
