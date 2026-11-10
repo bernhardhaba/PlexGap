@@ -22,6 +22,10 @@ details{background:var(--card);border-radius:10px;margin:8px 0;padding:10px 14px
 details[open]{background:var(--open);border-left-color:var(--acc)}
 .ignbox details[open]{background:transparent;border-left-color:transparent}
 summary{cursor:pointer;font-weight:600}
+.chk{background:transparent;border:0;padding:0 8px 0 0;font-size:1.15em;line-height:1;cursor:pointer;color:var(--acc)}
+details.done{opacity:.55}
+details.done>summary{text-decoration:line-through}
+details.done>summary .chk{text-decoration:none}
 summary span{color:var(--mut);font-weight:400}
 ul{margin:8px 0 0;padding-left:0;list-style:none}
 li{padding:2px 0;font-size:.95em}
@@ -195,6 +199,7 @@ async function showLast(){
   showIgnored();
   const d=await api('/api/last');
   try{hist=await api('/api/history')}catch(e){}
+  try{doneSet=new Set(await api('/api/done'))}catch(e){}
   last=d;updateScanBtn();
   render(d,true);
   $('btnClear').hidden=!d.results.length;
@@ -204,7 +209,18 @@ $('btnClear').onclick=async()=>{
   if(!confirm('Gespeichertes Ergebnis komplett löschen?')) return;
   await api('/api/last/clear',{method:'POST'});showLast();
 };
+let doneSet=new Set();
 $('out').onclick=async e=>{
+  const c=e.target.closest('button[data-done]');
+  if(c){
+    e.preventDefault();e.stopPropagation(); // Zeile nicht auf-/zuklappen
+    const t=c.dataset.done,on=!doneSet.has(t);
+    on?doneSet.add(t):doneSet.delete(t);
+    c.textContent=on?'☑':'☐';c.setAttribute('aria-pressed',on);c.title=on?'Haken entfernen':'Als erledigt abhaken';
+    c.closest('details').classList.toggle('done',on);
+    try{await api('/api/done',{method:'POST',body:JSON.stringify({title:t,done:on})})}catch(err){}
+    return;
+  }
   const b=e.target.closest('button[data-del]'); if(!b) return;
   e.preventDefault();
   await api('/api/last/remove',{method:'POST',body:JSON.stringify({title:b.dataset.del})});
@@ -301,7 +317,8 @@ function render(j,deletable){
     const body=r.missing.length?Object.entries(bySeason).map(([s,l])=>
       `<li><b>Staffel ${s}:</b> ${l.length} fehlen<ul>${l.map(m=>`<li><code>S${pad(m.s)}E${pad(m.e)}</code> ${esc(m.name)} <span class="mut">(${m.airdate})</span></li>`).join('')}</ul></li>`).join('')
       :'';
-    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}><summary>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Dauerhaft ausblenden" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
+    const dn=doneSet.has(r.title);
+    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}${dn?' class="done"':''}><summary><button class="chk" data-done="${esc(r.title)}" title="${dn?'Haken entfernen':'Als erledigt abhaken'}" aria-pressed="${dn}">${dn?'☑':'☐'}</button>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Dauerhaft ausblenden" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
   }).join('');
 }
 init();

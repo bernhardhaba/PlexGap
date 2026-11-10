@@ -166,6 +166,25 @@ def save_ignored(items):
             json.dump(items, f, ensure_ascii=False)
 
 
+# ---------- Abgehakte Serien (zur Übersicht beim Abarbeiten) ----------
+DONE_FILE = os.path.join(HERE, "done.json")
+
+
+def load_done():
+    with _lock:
+        try:
+            with open(DONE_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+
+
+def save_done(items):
+    with _lock:
+        with open(DONE_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False)
+
+
 # ---------- Statistik / Verlauf ----------
 HISTORY_FILE = os.path.join(HERE, "history.json")
 
@@ -449,6 +468,8 @@ class H(BaseHTTPRequestHandler):
                 self.send(d)
             elif u.path == "/api/history":
                 self.send(load_history()["snapshots"])
+            elif u.path == "/api/done":
+                self.send(load_done())
             elif u.path == "/api/version":
                 v = current_version()
                 self.send({"version": v[:7] if v else None, "auto": AUTOUPDATE,
@@ -491,6 +512,13 @@ class H(BaseHTTPRequestHandler):
                 if os.path.exists(HISTORY_FILE):
                     os.remove(HISTORY_FILE)
                 self.send({"ok": True})
+            elif u.path == "/api/done":
+                title = data.get("title")
+                items = [t for t in load_done() if t != title]
+                if data.get("done") and title:
+                    items.append(title)
+                save_done(items)
+                self.send(items)
             elif u.path == "/api/stop":
                 if data.get("id") in jobs:
                     jobs[data["id"]]["cancel"] = True

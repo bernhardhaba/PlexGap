@@ -3,6 +3,7 @@ client_id.txt
 last_result.json
 PlexGap-Proxmox-Setup.sh
 ignored.json
+done.json
 version.json
 *.bak
 *.new
