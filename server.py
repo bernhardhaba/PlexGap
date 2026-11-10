@@ -410,13 +410,25 @@ class H(BaseHTTPRequestHandler):
                 save_last(d)
                 ign = load_ignored()
                 if not any(i["title"] == title for i in ign):
-                    ign.append({"title": title, "rk": rk})
+                    ign.append({"title": title, "rk": rk, "entry": hit[0] if hit else None})
                     save_ignored(ign)
                 self.send(ign)
             elif u.path == "/api/ignored/remove":
-                ign = [i for i in load_ignored() if i["title"] != data.get("title")]
+                title = data.get("title")
+                allign = load_ignored()
+                item = next((i for i in allign if i["title"] == title), None)
+                ign = [i for i in allign if i["title"] != title]
                 save_ignored(ign)
-                self.send(ign)
+                restored = False
+                if item and item.get("entry"):  # Serie sofort zurück ins gespeicherte Ergebnis
+                    d = load_last()
+                    if d.get("section") is not None and not any(r["title"] == title for r in d["results"]):
+                        d["results"].append(item["entry"])
+                        if item.get("rk"):
+                            d["checked"] = sorted(set(d.get("checked", [])) | {item["rk"]})
+                        save_last(d)
+                        restored = True
+                self.send({"ignored": ign, "restored": restored})
             elif u.path == "/api/scan":
                 jid = uuid.uuid4().hex
                 jobs[jid] = {"state": "running", "total": 0, "done": 0, "current": "", "results": []}

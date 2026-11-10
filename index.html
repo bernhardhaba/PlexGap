@@ -153,10 +153,12 @@ async function showIgnored(){
 $('ign').onclick=async e=>{
   const b=e.target.closest('button[data-unhide]'); if(!b) return;
   e.preventDefault();
-  await api('/api/ignored/remove',{method:'POST',body:JSON.stringify({title:b.dataset.unhide})});
+  const r=await api('/api/ignored/remove',{method:'POST',body:JSON.stringify({title:b.dataset.unhide})});
   const open=document.querySelector('#ign details');
+  if(!scanning) await showLast();
   await showIgnored();
   const d=document.querySelector('#ign details'); if(d&&open) d.open=true;
+  if(!scanning&&!r.restored) $('status').textContent='Serie eingeblendet – sie erscheint beim nächsten Lauf („Fortsetzen“) wieder in der Liste.';
 };
 async function showLast(){
   showIgnored();
