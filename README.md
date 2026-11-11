@@ -18,6 +18,7 @@ eintragen und auf „Prüfen“ klicken.
 - Specials (Staffel 0) und noch nicht ausgestrahlte Folgen zählen nicht als fehlend.
 - Das letzte Ergebnis wird in `last_result.json` gespeichert; „Fortsetzen“ macht nach einem Stopp weiter.
 - Ergebnis löschen: komplett oder pro Serie (✕).
+- Sprachen: Deutsch, English, Français, Español – automatisch nach Browsersprache, umschaltbar unten auf der Seite.
 
 ## Als LXC (Proxmox)
 

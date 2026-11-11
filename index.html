@@ -69,18 +69,18 @@ a{color:var(--acc)}
 </head>
 <body>
 <main>
-<h1 class="brand"><img src="/logo.webp?v=3" alt="PlexGap – fehlende Serienfolgen finden"></h1>
-<div id="login"><button class="p" id="btnLogin">Mit Plex anmelden</button>
+<h1 class="brand"><img src="/logo.webp?v=3" data-i18n-alt="h1alt" alt="PlexGap"></h1>
+<div id="login"><button class="p" id="btnLogin" data-i18n="login">Mit Plex anmelden</button>
 <p class="mut" id="loginMsg"></p></div>
 <div id="app" hidden>
   <div class="row">
-    <input id="url" placeholder="Serveradresse" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)">
+    <input id="url" data-i18n-ph="urlPh" placeholder="Serveradresse" style="font:inherit;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--fg)">
     <select id="server"></select>
     <select id="lib"></select>
     <button class="p" id="btnScan">Prüfen</button>
-    <button id="btnStop" disabled>Stopp</button>
-    <button id="btnClear" disabled>Löschen</button>
-    <button id="btnLogout">Abmelden</button>
+    <button id="btnStop" disabled data-i18n="stop">Stopp</button>
+    <button id="btnClear" disabled data-i18n="clear">Löschen</button>
+    <button id="btnLogout" data-i18n="logout">Abmelden</button>
   </div>
   <div class="bar" id="barWrap" hidden><i id="bar"></i></div>
   <p class="mut" id="status"></p>
@@ -88,7 +88,7 @@ a{color:var(--acc)}
   <div id="ign"></div>
   <div id="stats"></div>
 </div>
-<p class="mut" id="ver" style="margin-top:32px;font-size:.85em"></p>
+<p class="mut" style="margin-top:32px;font-size:.85em"><span id="ver"></span> · <select id="langSel" title="Language / Sprache" aria-label="Language / Sprache" style="padding:2px 6px;font-size:1em"></select></p>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -100,33 +100,150 @@ const api=async(p,o={})=>{
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
 
+// ---------- Mehrsprachigkeit (Reihenfolge der Texte: de, en, fr, es) ----------
+const LANGS=[['de','Deutsch','de-DE'],['en','English','en-GB'],['fr','Français','fr-FR'],['es','Español','es-ES']];
+const K={
+h1alt:['PlexGap – fehlende Serienfolgen finden','PlexGap – find missing episodes','PlexGap – trouvez les épisodes manquants','PlexGap – encuentra los episodios que faltan'],
+login:['Mit Plex anmelden','Sign in with Plex','Se connecter avec Plex','Iniciar sesión con Plex'],
+loginStart:['Starte Anmeldung …','Starting sign-in …','Démarrage de la connexion …','Iniciando sesión …'],
+loginOpen:['Bitte hier bei Plex anmelden:','Please sign in to Plex here:','Connectez-vous à Plex ici :','Inicia sesión en Plex aquí:'],
+loginLink:['Plex-Anmeldung öffnen','Open Plex sign-in','Ouvrir la connexion Plex','Abrir inicio de sesión de Plex'],
+loginWait:['Warte auf Bestätigung …','Waiting for confirmation …','En attente de confirmation …','Esperando confirmación …'],
+loginTimeout:['Zeitüberschreitung, bitte erneut versuchen.','Timed out, please try again.','Délai dépassé, veuillez réessayer.','Tiempo agotado, inténtalo de nuevo.'],
+urlPh:['Serveradresse','Server address','Adresse du serveur','Dirección del servidor'],
+scan:['Prüfen','Scan','Analyser','Analizar'],
+resume:['Fortsetzen','Resume','Reprendre','Continuar'],
+newscan:['Neuer Scan','New scan','Nouvelle analyse','Nuevo análisis'],
+stop:['Stopp','Stop','Arrêter','Detener'],
+clear:['Löschen','Delete','Supprimer','Borrar'],
+logout:['Abmelden','Sign out','Se déconnecter','Cerrar sesión'],
+libLoad:['Lade …','Loading …','Chargement …','Cargando …'],
+libNone:['Keine Serien-Bibliothek','No TV library','Aucune bibliothèque de séries','Sin biblioteca de series'],
+libOff:['Server nicht erreichbar','Server unreachable','Serveur injoignable','Servidor no accesible'],
+stopping:['Stoppe …','Stopping …','Arrêt en cours …','Deteniendo …'],
+ignH:['Ausgeblendet','Hidden','Masquées','Ocultas'],
+ignSum:['Ausgeblendete Serien','Hidden series','Séries masquées','Series ocultas'],
+unhide:['Einblenden','Show again','Réafficher','Mostrar'],
+unhideNote:['Serie eingeblendet – sie erscheint beim nächsten Lauf („{b}“) wieder in der Liste.','Series shown again – it will reappear in the list on the next run (“{b}”).','Série réaffichée – elle réapparaîtra dans la liste à la prochaine analyse (« {b} »).','Serie mostrada de nuevo: volverá a aparecer en la lista en el próximo análisis («{b}»).'],
+savedStatus:['Gespeichertes Ergebnis vom {d}: {n} Serien mit fehlenden Folgen.','Saved result from {d}: {n} series with missing episodes.','Résultat enregistré du {d} : {n} séries avec des épisodes manquants.','Resultado guardado del {d}: {n} series con episodios que faltan.'],
+partialStatus:[' (gestoppt, nur {p} Serien geprüft)',' (stopped, only {p} series checked)',' (arrêté, seulement {p} séries analysées)',' (detenido, solo {p} series analizadas)'],
+confirmClear:['Gespeichertes Ergebnis komplett löschen?','Delete the saved result completely?','Supprimer complètement le résultat enregistré ?','¿Borrar por completo el resultado guardado?'],
+chkOn:['Als erledigt abhaken','Mark as done','Marquer comme terminé','Marcar como hecho'],
+chkOff:['Haken entfernen','Remove check mark','Retirer la coche','Quitar la marca'],
+delTitle:['Dauerhaft ausblenden','Hide permanently','Masquer définitivement','Ocultar permanentemente'],
+season:['Staffel {s}:','Season {s}:','Saison {s} :','Temporada {s}:'],
+nMiss:['{n} fehlen','{n} missing','{n} manquants','faltan {n}'],
+statH:['Statistik','Statistics','Statistiques','Estadísticas'],
+tSeries:['Serien geprüft','series checked','séries analysées','series analizadas'],
+tGaps:['mit fehlenden Folgen','with missing episodes','avec épisodes manquants','con episodios que faltan'],
+tEps:['Folgen fehlen gesamt','episodes missing in total','épisodes manquants au total','episodios que faltan en total'],
+tPct:['aller Folgen vorhanden','of all episodes present','de tous les épisodes présents','de todos los episodios presentes'],
+tSize:['Speicher zu laden (geschätzt)','storage to download (estimated)','stockage à télécharger (estimé)','almacenamiento a descargar (estimado)'],
+tNew:['neu (letzte 30 Tage)','new (last 30 days)','nouveaux (30 derniers jours)','nuevos (últimos 30 días)'],
+hEps:['Vollständigkeit der Folgen','Episode completeness','Complétude des épisodes','Integridad de los episodios'],
+aEps:['{h} von {t} Folgen vorhanden','{h} of {t} episodes present','{h} épisodes sur {t} présents','{h} de {t} episodios presentes'],
+lEps:['{h} von {t} ausgestrahlten Folgen vorhanden','{h} of {t} aired episodes present','{h} épisodes diffusés sur {t} présents','{h} de {t} episodios emitidos presentes'],
+hSer:['Vollständigkeit der Serien','Series completeness','Complétude des séries','Integridad de las series'],
+aSer:['{c} vollständig, {g} mit Lücken','{c} complete, {g} with gaps','{c} complètes, {g} avec des manques','{c} completas, {g} con huecos'],
+lComp:['Vollständig','Complete','Complètes','Completas'],
+lGaps:['Mit Lücken','With gaps','Avec manques','Con huecos'],
+lHid:['Ausgeblendet','Hidden','Masquées','Ocultas'],
+hAlmost:['Fast fertig – höchstens 3 Folgen fehlen ({n})','Almost done – at most 3 episodes missing ({n})','Presque terminées – 3 épisodes manquants au plus ({n})','Casi completas: faltan como máximo 3 episodios ({n})'],
+more:['+{n} weitere','+{n} more','+{n} autres','+{n} más'],
+hSeasons:['Ganze Staffeln oder einzelne Lücken?','Whole seasons or single gaps?','Saisons entières ou manques isolés ?','¿Temporadas completas o huecos sueltos?'],
+lFull:['Ganze Staffel fehlt','Whole season missing','Saison entière manquante','Falta la temporada entera'],
+lSingle:['Nur einzelne Lücken','Only single gaps','Seulement des manques isolés','Solo huecos sueltos'],
+hTop:['Die meisten fehlenden Folgen','Most missing episodes','Le plus d’épisodes manquants','Más episodios que faltan'],
+hAge:['Alter der Lücken (nach Ausstrahlungsjahr)','Age of the gaps (by year aired)','Ancienneté des manques (par année de diffusion)','Antigüedad de los huecos (por año de emisión)'],
+ageTitle:['{y}: {n} Folgen','{y}: {n} episodes','{y} : {n} épisodes','{y}: {n} episodios'],
+hHist1:['Verlauf (1 Prüfung, zuletzt {d})','History (1 scan, latest {d})','Historique (1 analyse, dernière le {d})','Historial (1 análisis, último el {d})'],
+hHistN:['Verlauf ({n} Prüfungen, zuletzt {d})','History ({n} scans, latest {d})','Historique ({n} analyses, dernière le {d})','Historial ({n} análisis, último el {d})'],
+histAria:['Verlauf der fehlenden Folgen','Missing episodes over time','Évolution des épisodes manquants','Evolución de los episodios que faltan'],
+delta:['Seit der Prüfung davor: <b>{c}</b> Folgen geschlossen, <b>{n}</b> neu hinzugekommen.','Since the previous scan: <b>{c}</b> episodes closed, <b>{n}</b> newly added.','Depuis l’analyse précédente : <b>{c}</b> épisodes comblés, <b>{n}</b> nouveaux.','Desde el análisis anterior: <b>{c}</b> episodios cerrados, <b>{n}</b> nuevos.'],
+first:['Erste Prüfung im Verlauf – ab der nächsten siehst du Veränderungen.','First scan in the history – you will see changes from the next one on.','Première analyse de l’historique – les changements apparaîtront dès la suivante.','Primer análisis del historial: verás los cambios a partir del siguiente.'],
+histClear:['Verlauf löschen','Delete history','Supprimer l’historique','Borrar historial'],
+confirmHist:['Verlauf der Prüfungen löschen?','Delete the scan history?','Supprimer l’historique des analyses ?','¿Borrar el historial de análisis?'],
+hDq:['Datenqualität','Data quality','Qualité des données','Calidad de los datos'],
+dq1:['{n} Serie mit Hinweis (Zählung unsicher): {l}','{n} series with a note (count uncertain): {l}','{n} série avec remarque (décompte incertain) : {l}','{n} serie con aviso (recuento incierto): {l}'],
+dqN:['{n} Serien mit Hinweis (Zählung unsicher): {l}','{n} series with a note (count uncertain): {l}','{n} séries avec remarque (décompte incertain) : {l}','{n} series con aviso (recuento incierto): {l}'],
+verLine:['Version {v} · Auto-Update: {a}{s} · ','Version {v} · Auto-update: {a}{s} · ','Version {v} · Mise à jour auto : {a}{s} · ','Versión {v} · Actualización automática: {a}{s} · '],
+unknown:['unbekannt','unknown','inconnue','desconocida'],
+on:['an','on','activée','activada'],
+off:['aus','off','désactivée','desactivada'],
+updCheck:['Nach Update suchen','Check for updates','Rechercher une mise à jour','Buscar actualización'],
+confirmUpd:['Neueste Version von GitHub laden? Eine laufende Prüfung wird dabei abgebrochen.','Load the latest version from GitHub? A running scan will be aborted.','Charger la dernière version depuis GitHub ? Une analyse en cours sera interrompue.','¿Descargar la última versión de GitHub? Un análisis en curso se cancelará.'],
+updSearch:['Suche Update …','Looking for updates …','Recherche de mise à jour …','Buscando actualización …'],
+updDone:['Aktualisiert, starte neu …','Updated, restarting …','Mis à jour, redémarrage …','Actualizado, reiniciando …'],
+updFail:['Update fehlgeschlagen: {e}','Update failed: {e}','Échec de la mise à jour : {e}','Error al actualizar: {e}'],
+// Meldungen des Servers (kommen auf Deutsch an und werden hier übersetzt)
+srvNF:['Serie bei TVmaze nicht gefunden','Series not found on TVmaze','Série introuvable sur TVmaze','Serie no encontrada en TVmaze'],
+srvCur:['Aktuell','Up to date','À jour','Actualizado'],
+srvNoConn:['Keine Verbindung zum Plex-Server möglich','Cannot connect to the Plex server','Connexion au serveur Plex impossible','No se puede conectar con el servidor Plex'],
+srvBadFiles:['Heruntergeladene Dateien sehen nicht richtig aus','Downloaded files do not look right','Les fichiers téléchargés semblent incorrects','Los archivos descargados no parecen correctos'],
+srvErr:['Fehler: ','Error: ','Erreur : ','Error: '],
+srvUpdFail:['Update fehlgeschlagen: ','Update failed: ','Échec de la mise à jour : ','Error al actualizar: '],
+srvChkFail:['Update-Prüfung fehlgeschlagen: ','Update check failed: ','Échec de la recherche de mise à jour : ','Error al buscar actualizaciones: ']
+};
+const detect=()=>{const n=(navigator.language||'de').slice(0,2).toLowerCase();return LANGS.some(l=>l[0]===n)?n:'en'};
+let lang=(()=>{try{const s=localStorage.getItem('lang');if(LANGS.some(l=>l[0]===s))return s}catch(e){}return detect()})();
+const li=()=>Math.max(0,LANGS.findIndex(l=>l[0]===lang));
+const loc=()=>LANGS[li()][2];
+const t=(k,v)=>{let s=(K[k]||[k])[li()]??K[k][0];if(v)for(const x in v)s=s.split('{'+x+'}').join(v[x]);return s};
+// Servermeldungen (deutsch) in die gewählte Sprache übersetzen
+const SRV_EXACT={'Serie bei TVmaze nicht gefunden':'srvNF','Aktuell':'srvCur','Keine Verbindung zum Plex-Server möglich':'srvNoConn','Heruntergeladene Dateien sehen nicht richtig aus':'srvBadFiles','Aktualisiert, starte neu …':'updDone'};
+const SRV_PREFIX=[['Fehler: ','srvErr'],['Update fehlgeschlagen: ','srvUpdFail'],['Update-Prüfung fehlgeschlagen: ','srvChkFail']];
+const srv=s=>{s=String(s==null?'':s);if(SRV_EXACT[s])return t(SRV_EXACT[s]);
+  for(const [p,k] of SRV_PREFIX) if(s.startsWith(p)) return K[k][li()]+s.slice(p.length);return s};
+const num=n=>Number(n).toLocaleString(loc());
+const dec1=n=>Number(n).toLocaleString(loc(),{minimumFractionDigits:1,maximumFractionDigits:1});
+// Dynamische Texte, die beim Sprachwechsel neu berechnet werden
+let statusFn=null,loginFn=null,libMsg=null;
+function setStatus(fn,html){statusFn=fn?{fn,html}:null;const s=$('status');if(!fn){s.textContent='';return}html?s.innerHTML=fn():s.textContent=fn()}
+function setLogin(fn,html){loginFn=fn?{fn,html}:null;const s=$('loginMsg');if(!fn){s.textContent='';return}html?s.innerHTML=fn():s.textContent=fn()}
+function setLibMsg(k){libMsg=k;if(k)$('lib').innerHTML=`<option value="">${esc(t(k))}</option>`}
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=t(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(e=>e.placeholder=t(e.dataset.i18nPh));
+  document.querySelectorAll('[data-i18n-alt]').forEach(e=>e.alt=t(e.dataset.i18nAlt));
+  if(statusFn)setStatus(statusFn.fn,statusFn.html);
+  if(loginFn)setLogin(loginFn.fn,loginFn.html);
+  if(libMsg)setLibMsg(libMsg);
+  if(typeof updateScanBtn==='function')updateScanBtn();
+  if(typeof showVersion==='function')showVersion();
+  if(typeof lastStatsJ!=='undefined'&&lastStatsJ){render(lastStatsJ,true);if(typeof showIgnored==='function'&&!$('app').hidden)showIgnored()}
+}
+$('langSel').innerHTML=LANGS.map(l=>`<option value="${l[0]}">${l[1]}</option>`).join('');
+$('langSel').value=lang;
+$('langSel').onchange=()=>{lang=$('langSel').value;try{localStorage.setItem('lang',lang)}catch(e){}applyLang()};
+
 $('btnLogin').onclick=async()=>{
   try{
-    $('loginMsg').textContent='Starte Anmeldung …';
+    setLogin(()=>t('loginStart'));
     const pin=await api('/api/pin',{method:'POST'});
-    $('loginMsg').innerHTML='Bitte hier bei Plex anmelden: <a href="'+esc(pin.url)+'" target="_blank" rel="noopener">Plex-Anmeldung öffnen</a><br>Warte auf Bestätigung …';
+    setLogin(()=>t('loginOpen')+' <a href="'+esc(pin.url)+'" target="_blank" rel="noopener">'+esc(t('loginLink'))+'</a><br>'+esc(t('loginWait')),true);
     try{window.open(pin.url,'_blank')}catch(e){}
     for(let i=0;i<120;i++){
       await new Promise(r=>setTimeout(r,2000));
       const r=await api(`/api/pin?id=${pin.id}&code=${pin.code}`);
-      if(r.token){token=r.token;localStorage.setItem('plexToken',token);return init();}
+      if(r.token){token=r.token;localStorage.setItem('plexToken',token);setLogin(null);return init();}
     }
-    $('loginMsg').textContent='Zeitüberschreitung, bitte erneut versuchen.';
-  }catch(e){$('loginMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+    setLogin(()=>t('loginTimeout'));
+  }catch(e){const m=e.message;setLogin(()=>'<span class="err">'+esc(srv(m))+'</span>',true)}
 };
 async function showVersion(){
   try{
     const v=await api('/api/version');
-    $('ver').innerHTML=`Version ${esc(v.version||'unbekannt')} · Auto-Update: ${v.auto?'an':'aus'}${v.status?' · '+esc(v.status):''} · <a href="#" id="btnUpd">Nach Update suchen</a>`;
+    $('ver').innerHTML=t('verLine',{v:esc(v.version||t('unknown')),a:v.auto?t('on'):t('off'),s:v.status?' · '+esc(srv(v.status)):''})+`<a href="#" id="btnUpd">${esc(t('updCheck'))}</a>`;
     $('btnUpd').onclick=async e=>{
       e.preventDefault();
-      if(!confirm('Neueste Version von GitHub laden? Eine laufende Prüfung wird dabei abgebrochen.')) return;
-      $('ver').textContent='Suche Update …';
+      if(!confirm(t('confirmUpd'))) return;
+      $('ver').textContent=t('updSearch');
       try{
         const r=await api('/api/update',{method:'POST'});
-        if(r.updated){$('ver').textContent='Aktualisiert, starte neu …';setTimeout(()=>location.reload(),4000)}
+        if(r.updated){$('ver').textContent=t('updDone');setTimeout(()=>location.reload(),4000)}
         else showVersion();
-      }catch(err){$('ver').textContent='Update fehlgeschlagen: '+err.message}
+      }catch(err){$('ver').textContent=t('updFail',{e:srv(err.message)})}
     };
   }catch(e){}
 }
@@ -146,15 +263,16 @@ async function init(){
   }catch(e){
     localStorage.removeItem('plexToken');token='';
     $('login').hidden=false;$('app').hidden=true;
-    $('loginMsg').innerHTML='<span class="err">'+esc(e.message)+'</span>';
+    const m=e.message;setLogin(()=>'<span class="err">'+esc(srv(m))+'</span>',true);
   }
 }
 async function loadLibs(){
-  $('lib').innerHTML='<option>Lade …</option>';
+  setLibMsg('libLoad');
   try{
     const libs=await api('/api/libraries?url='+encodeURIComponent($('url').value));
-    $('lib').innerHTML=libs.length?libs.map(l=>`<option value="${esc(l.key)}">${esc(l.title)}</option>`).join(''):'<option value="">Keine Serien-Bibliothek</option>';
-  }catch(e){$('lib').innerHTML='<option value="">Server nicht erreichbar</option>';$('status').innerHTML='<span class="err">'+esc(e.message)+'</span>'}
+    if(libs.length){libMsg=null;$('lib').innerHTML=libs.map(l=>`<option value="${esc(l.key)}">${esc(l.title)}</option>`).join('')}
+    else setLibMsg('libNone');
+  }catch(e){setLibMsg('libOff');const m=e.message;setStatus(()=>'<span class="err">'+esc(srv(m))+'</span>',true)}
   updateScanBtn();
 }
 $('btnScan').onclick=async()=>{
@@ -166,14 +284,14 @@ $('btnScan').onclick=async()=>{
   $('barWrap').hidden=false;$('btnScan').disabled=true;$('btnClear').disabled=true;
   const {id}=await api('/api/scan',{method:'POST',body:JSON.stringify({url:$('url').value,section:$('lib').value,resume})});
   $('btnStop').disabled=false;
-  $('btnStop').onclick=async()=>{$('btnStop').disabled=true;$('status').textContent='Stoppe …';
+  $('btnStop').onclick=async()=>{$('btnStop').disabled=true;setStatus(()=>t('stopping'));
     await api('/api/stop',{method:'POST',body:JSON.stringify({id})})};
   while(true){
     const j=await api('/api/job?id='+id);
     $('bar').style.width=(j.total?j.done/j.total*100:0)+'%';
-    $('status').textContent=j.state==='error'?'':`${j.done}/${j.total} – ${j.current}`;
+    if(j.state==='error') setStatus(null); else setStatus(()=>`${j.done}/${j.total} – ${j.current}`);
     render(j,true);
-    if(j.state==='error'){$('status').innerHTML='<span class="err">'+esc(j.error)+'</span>';break}
+    if(j.state==='error'){const m=j.error;setStatus(()=>'<span class="err">'+esc(srv(m))+'</span>',true);break}
     if(j.state==='done'){
       const n=j.results.filter(r=>r.missing.length).length;
       await showLast();break}
@@ -187,12 +305,12 @@ let last=null,scanning=false;
 const sameLib=()=>!!(last&&last.section&&String(last.section)===String($('lib').value));
 const canResume=()=>sameLib()&&!!last.partial;   // gestoppter Lauf: weitermachen
 const isFinished=()=>sameLib()&&!last.partial;   // durchgelaufen: Neuer Scan
-const updateScanBtn=()=>{$('btnScan').textContent=canResume()?'Fortsetzen':isFinished()?'Neuer Scan':'Prüfen'};
+const updateScanBtn=()=>{$('btnScan').textContent=t(canResume()?'resume':isFinished()?'newscan':'scan')};
 $('lib').onchange=updateScanBtn;
 async function showIgnored(){
   const l=await api('/api/ignored');
-  $('ign').innerHTML=l.length?`<div class="ignbox"><h2>Ausgeblendet</h2><details><summary>Ausgeblendete Serien <span>${l.length}</span></summary><ul>${l.map(i=>
-    `<li>${esc(i.title)} <button data-unhide="${esc(i.title)}" style="float:right;padding:0 8px">Einblenden</button></li>`).join('')}</ul></details></div>`:'';
+  $('ign').innerHTML=l.length?`<div class="ignbox"><h2>${esc(t('ignH'))}</h2><details><summary>${esc(t('ignSum'))} <span>${l.length}</span></summary><ul>${l.map(i=>
+    `<li>${esc(i.title)} <button data-unhide="${esc(i.title)}" style="float:right;padding:0 8px">${esc(t('unhide'))}</button></li>`).join('')}</ul></details></div>`:'';
 }
 $('ign').onclick=async e=>{
   const b=e.target.closest('button[data-unhide]'); if(!b) return;
@@ -202,7 +320,7 @@ $('ign').onclick=async e=>{
   if(!scanning) await showLast();
   await showIgnored();
   const d=document.querySelector('#ign details'); if(d&&open) d.open=true;
-  if(!scanning&&!r.restored) $('status').textContent='Serie eingeblendet – sie erscheint beim nächsten Lauf („Fortsetzen“) wieder in der Liste.';
+  if(!scanning&&!r.restored) setStatus(()=>t('unhideNote',{b:t('resume')}));
 };
 async function showLast(){
   showIgnored();
@@ -212,10 +330,11 @@ async function showLast(){
   last=d;updateScanBtn();
   render(d,true);
   $('btnClear').disabled=scanning||!d.results.length;
-  $('status').textContent=d.date?`Gespeichertes Ergebnis vom ${new Date(d.date).toLocaleString('de-DE')}: ${d.results.filter(r=>r.missing.length).length} Serien mit fehlenden Folgen.`+(d.partial?` (gestoppt, nur ${d.partial} Serien geprüft)`:''):'';
+  if(d.date) setStatus(()=>t('savedStatus',{d:new Date(d.date).toLocaleString(loc()),n:d.results.filter(r=>r.missing.length).length})+(d.partial?t('partialStatus',{p:d.partial}):''));
+  else setStatus(null);
 }
 $('btnClear').onclick=async()=>{
-  if(!confirm('Gespeichertes Ergebnis komplett löschen?')) return;
+  if(!confirm(t('confirmClear'))) return;
   await api('/api/last/clear',{method:'POST'});showLast();
 };
 let doneSet=new Set();
@@ -225,7 +344,7 @@ $('out').onclick=async e=>{
     e.preventDefault();e.stopPropagation(); // Zeile nicht auf-/zuklappen
     const t=c.dataset.done,on=!doneSet.has(t);
     on?doneSet.add(t):doneSet.delete(t);
-    c.textContent=on?'☑':'☐';c.setAttribute('aria-pressed',on);c.title=on?'Haken entfernen':'Als erledigt abhaken';
+    c.textContent=on?'☑':'☐';c.setAttribute('aria-pressed',on);c.title=t(on?'chkOff':'chkOn');
     c.closest('details').classList.toggle('done',on);
     try{await api('/api/done',{method:'POST',body:JSON.stringify({title:t,done:on})})}catch(err){}
     return;
@@ -236,12 +355,11 @@ $('out').onclick=async e=>{
   if(scanning) showIgnored(); else showLast(); // im Lauf aktualisiert die Abfrage die Liste selbst
 };
 let hist=[],lastStatsJ=null;
-const num=n=>Number(n).toLocaleString('de-DE');
 function fmtSize(b){
   const gb=b/1e9;
-  if(gb>=1000) return (gb/1000).toFixed(2).replace('.',',')+' TB';
+  if(gb>=1000) return (gb/1000).toLocaleString(loc(),{minimumFractionDigits:2,maximumFractionDigits:2})+' TB';
   if(gb>=10) return Math.round(gb)+' GB';
-  return gb.toFixed(1).replace('.',',')+' GB';
+  return dec1(gb)+' GB';
 }
 function showStats(j){
   lastStatsJ=j;
@@ -282,39 +400,39 @@ function showStats(j){
     if(hist.length>=2){
       const vals=hist.map(h=>h.episodes),mx=Math.max(...vals,1),mn=Math.min(...vals);
       const pts=vals.map((v,i)=>[4+i*(192/(vals.length-1)),mx===mn?22:38-((v-mn)/(mx-mn))*32]);
-      sp=`<svg viewBox="0 0 200 44" width="100%" height="44" role="img" aria-label="Verlauf der fehlenden Folgen"><polyline fill="none" stroke="var(--acc)" stroke-width="2" points="${pts.map(p=>p.join(',')).join(' ')}"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3.5" fill="var(--acc)"/></svg>`;
+      sp=`<svg viewBox="0 0 200 44" width="100%" height="44" role="img" aria-label="${esc(t('histAria'))}"><polyline fill="none" stroke="var(--acc)" stroke-width="2" points="${pts.map(p=>p.join(',')).join(' ')}"/><circle cx="${pts[pts.length-1][0]}" cy="${pts[pts.length-1][1]}" r="3.5" fill="var(--acc)"/></svg>`;
     }
-    const d=new Date(last.date).toLocaleDateString('de-DE');
+    const d=new Date(last.date).toLocaleDateString(loc());
     const delta=last.closed!==undefined
-      ?`Seit der Prüfung davor: <b>${num(last.closed)}</b> Folgen geschlossen, <b>${num(last.new)}</b> neu hinzugekommen.`
-      :'Erste Prüfung im Verlauf – ab der nächsten siehst du Veränderungen.';
-    trend=`<h3>Verlauf (${hist.length} Prüfung${hist.length>1?'en':''}, zuletzt ${d})</h3>${sp}<div class="mut" style="font-size:.88em">${delta} <a href="#" id="histClear">Verlauf löschen</a></div>`;
+      ?t('delta',{c:num(last.closed),n:num(last.new)})
+      :esc(t('first'));
+    trend=`<h3>${esc(hist.length>1?t('hHistN',{n:hist.length,d}):t('hHist1',{d}))}</h3>${sp}<div class="mut" style="font-size:.88em">${delta} <a href="#" id="histClear">${esc(t('histClear'))}</a></div>`;
   }
-  $('stats').innerHTML=`<div class="stats"><h2>Statistik</h2>
+  $('stats').innerHTML=`<div class="stats"><h2>${esc(t('statH'))}</h2>
     <div class="tiles">
-      <div class="tile"><b>${num(nSeries)}</b><span>Serien geprüft</span></div>
-      <div class="tile"><b>${num(gaps.length)}</b><span>mit fehlenden Folgen</span></div>
-      <div class="tile"><b>${num(eps)}</b><span>Folgen fehlen gesamt</span></div>
-      <div class="tile"><b>${epPct===null?'–':epPct.toFixed(1).replace('.',',')+' %'}</b><span>aller Folgen vorhanden</span></div>
-      <div class="tile"><b>${size?'≈ '+fmtSize(size):'–'}</b><span>Speicher zu laden (geschätzt)</span></div>
-      <div class="tile"><b>${num(recent)}</b><span>neu (letzte 30 Tage)</span></div>
+      <div class="tile"><b>${num(nSeries)}</b><span>${esc(t('tSeries'))}</span></div>
+      <div class="tile"><b>${num(gaps.length)}</b><span>${esc(t('tGaps'))}</span></div>
+      <div class="tile"><b>${num(eps)}</b><span>${esc(t('tEps'))}</span></div>
+      <div class="tile"><b>${epPct===null?'–':dec1(epPct)+' %'}</b><span>${esc(t('tPct'))}</span></div>
+      <div class="tile"><b>${size?'≈ '+fmtSize(size):'–'}</b><span>${esc(t('tSize'))}</span></div>
+      <div class="tile"><b>${num(recent)}</b><span>${esc(t('tNew'))}</span></div>
     </div>
-    ${epPct!==null?`<h3>Vollständigkeit der Folgen</h3><div class="split" role="img" aria-label="${num(have)} von ${num(total)} Folgen vorhanden"><i style="width:${epPct}%;background:var(--ok)"></i></div>
-    <div class="legend"><span>${num(have)} von ${num(total)} ausgestrahlten Folgen vorhanden</span></div>`:''}
-    <h3>Vollständigkeit der Serien</h3>
-    <div class="split" role="img" aria-label="${complete} vollständig, ${gaps.length} mit Lücken"><i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(gaps.length)}%;background:var(--acc)"></i><i style="width:${pct(hid)}%;background:var(--mut);opacity:.5"></i></div>
-    <div class="legend"><span><em style="background:var(--ok)"></em>Vollständig ${complete} (${Math.round(pct(complete))} %)</span><span><em style="background:var(--acc)"></em>Mit Lücken ${gaps.length} (${Math.round(pct(gaps.length))} %)</span>${hid?`<span><em style="background:var(--mut);opacity:.5"></em>Ausgeblendet ${hid}</span>`:''}</div>
-    ${almost.length?`<h3>Fast fertig – höchstens 3 Folgen fehlen (${almost.length})</h3><div class="chips">${almost.slice(0,12).map(r=>`<span class="chip">${esc(r.title)} <b>${r.missing.length}</b></span>`).join('')}${almost.length>12?`<span class="chip mut">+${almost.length-12} weitere</span>`:''}</div>`:''}
-    ${hasFs?`<h3>Ganze Staffeln oder einzelne Lücken?</h3>
+    ${epPct!==null?`<h3>${esc(t('hEps'))}</h3><div class="split" role="img" aria-label="${esc(t('aEps',{h:num(have),t:num(total)}))}"><i style="width:${epPct}%;background:var(--ok)"></i></div>
+    <div class="legend"><span>${esc(t('lEps',{h:num(have),t:num(total)}))}</span></div>`:''}
+    <h3>${esc(t('hSer'))}</h3>
+    <div class="split" role="img" aria-label="${esc(t('aSer',{c:complete,g:gaps.length}))}"><i style="width:${pct(complete)}%;background:var(--ok)"></i><i style="width:${pct(gaps.length)}%;background:var(--acc)"></i><i style="width:${pct(hid)}%;background:var(--mut);opacity:.5"></i></div>
+    <div class="legend"><span><em style="background:var(--ok)"></em>${esc(t('lComp'))} ${complete} (${Math.round(pct(complete))} %)</span><span><em style="background:var(--acc)"></em>${esc(t('lGaps'))} ${gaps.length} (${Math.round(pct(gaps.length))} %)</span>${hid?`<span><em style="background:var(--mut);opacity:.5"></em>${esc(t('lHid'))} ${hid}</span>`:''}</div>
+    ${almost.length?`<h3>${esc(t('hAlmost',{n:almost.length}))}</h3><div class="chips">${almost.slice(0,12).map(r=>`<span class="chip">${esc(r.title)} <b>${r.missing.length}</b></span>`).join('')}${almost.length>12?`<span class="chip mut">${esc(t('more',{n:almost.length-12}))}</span>`:''}</div>`:''}
+    ${hasFs?`<h3>${esc(t('hSeasons'))}</h3>
     <div class="split"><i style="width:${pctG(fullS)}%;background:#d6584b"></i><i style="width:${pctG(onlyGaps)}%;background:var(--acc)"></i></div>
-    <div class="legend"><span><em style="background:#d6584b"></em>Ganze Staffel fehlt ${fullS}</span><span><em style="background:var(--acc)"></em>Nur einzelne Lücken ${onlyGaps}</span></div>`:''}
-    ${top.length?`<h3>Die meisten fehlenden Folgen</h3><div class="top">${top.map(r=>`<span class="n" title="${esc(r.title)}">${esc(r.title)}</span><div class="bar2"><i style="width:${r.missing.length/maxEp*100}%"></i></div><span class="c">${r.missing.length}</span>`).join('')}</div>`:''}
-    ${years.length?`<h3>Alter der Lücken (nach Ausstrahlungsjahr)</h3><div class="cols">${years.map(y=>`<div class="col" title="${y}: ${byYear[y]} Folgen"><b>${byYear[y]}</b><i style="height:${Math.max(4,byYear[y]/maxY*70)}px"></i><span>${years.length>8?"'"+y.slice(2):y}</span></div>`).join('')}</div>`:''}
+    <div class="legend"><span><em style="background:#d6584b"></em>${esc(t('lFull'))} ${fullS}</span><span><em style="background:var(--acc)"></em>${esc(t('lSingle'))} ${onlyGaps}</span></div>`:''}
+    ${top.length?`<h3>${esc(t('hTop'))}</h3><div class="top">${top.map(r=>`<span class="n" title="${esc(r.title)}">${esc(r.title)}</span><div class="bar2"><i style="width:${r.missing.length/maxEp*100}%"></i></div><span class="c">${r.missing.length}</span>`).join('')}</div>`:''}
+    ${years.length?`<h3>${esc(t('hAge'))}</h3><div class="cols">${years.map(y=>`<div class="col" title="${esc(t('ageTitle',{y,n:byYear[y]}))}"><b>${byYear[y]}</b><i style="height:${Math.max(4,byYear[y]/maxY*70)}px"></i><span>${years.length>8?"'"+y.slice(2):y}</span></div>`).join('')}</div>`:''}
     ${trend}
-    ${notes.length?`<h3>Datenqualität</h3><div class="mut" style="font-size:.88em">${notes.length} Serie${notes.length>1?'n':''} mit Hinweis (Zählung unsicher): ${notes.slice(0,6).map(r=>esc(r.title)).join(', ')}${notes.length>6?' …':''}</div>`:''}
+    ${notes.length?`<h3>${esc(t('hDq'))}</h3><div class="mut" style="font-size:.88em">${t(notes.length>1?'dqN':'dq1',{n:notes.length,l:notes.slice(0,6).map(r=>esc(r.title)).join(', ')+(notes.length>6?' …':'')})}</div>`:''}
   </div>`;
   const hc=$('histClear');
-  if(hc) hc.onclick=async e=>{e.preventDefault();if(!confirm('Verlauf der Prüfungen löschen?'))return;
+  if(hc) hc.onclick=async e=>{e.preventDefault();if(!confirm(t('confirmHist')))return;
     await api('/api/history/clear',{method:'POST'});hist=[];showStats(lastStatsJ)};
 }
 function render(j,deletable){
@@ -324,12 +442,13 @@ function render(j,deletable){
   $('out').innerHTML=rs.map(r=>{
     const bySeason={};r.missing.forEach(m=>(bySeason[m.s]??=[]).push(m));
     const body=r.missing.length?Object.entries(bySeason).map(([s,l])=>
-      `<li><b>Staffel ${s}:</b> ${l.length} fehlen<ul>${l.map(m=>`<li><code>S${pad(m.s)}E${pad(m.e)}</code> ${esc(m.name)} <span class="mut">(${m.airdate})</span></li>`).join('')}</ul></li>`).join('')
+      `<li><b>${esc(t('season',{s}))}</b> ${esc(t('nMiss',{n:l.length}))}<ul>${l.map(m=>`<li><code>S${pad(m.s)}E${pad(m.e)}</code> ${esc(m.name)} <span class="mut">(${m.airdate})</span></li>`).join('')}</ul></li>`).join('')
       :'';
     const dn=doneSet.has(r.title);
-    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}${dn?' class="done"':''}><summary><button class="chk" data-done="${esc(r.title)}" title="${dn?'Haken entfernen':'Als erledigt abhaken'}" aria-pressed="${dn}">${dn?'☑':'☐'}</button>${esc(r.title)} <span>${r.missing.length?r.missing.length+' fehlen':''}${r.note?' – '+esc(r.note):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="Dauerhaft ausblenden" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
+    return `<details data-t="${esc(r.title)}"${open.has(r.title)?' open':''}${dn?' class="done"':''}><summary><button class="chk" data-done="${esc(r.title)}" title="${esc(t(dn?'chkOff':'chkOn'))}" aria-pressed="${dn}">${dn?'☑':'☐'}</button>${esc(r.title)} <span>${r.missing.length?esc(t('nMiss',{n:r.missing.length})):''}${r.note?' – '+esc(srv(r.note)):''}</span>${deletable?` <button data-del="${esc(r.title)}" title="${esc(t('delTitle'))}" style="float:right;padding:0 8px">✕</button>`:''}</summary><ul>${body}</ul></details>`;
   }).join('');
 }
+applyLang();
 init();
 </script>
 </body>
