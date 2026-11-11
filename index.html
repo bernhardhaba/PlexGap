@@ -342,11 +342,11 @@ $('out').onclick=async e=>{
   const c=e.target.closest('button[data-done]');
   if(c){
     e.preventDefault();e.stopPropagation(); // Zeile nicht auf-/zuklappen
-    const t=c.dataset.done,on=!doneSet.has(t);
-    on?doneSet.add(t):doneSet.delete(t);
+    const ttl=c.dataset.done,on=!doneSet.has(ttl);
+    on?doneSet.add(ttl):doneSet.delete(ttl);
     c.textContent=on?'☑':'☐';c.setAttribute('aria-pressed',on);c.title=t(on?'chkOff':'chkOn');
     c.closest('details').classList.toggle('done',on);
-    try{await api('/api/done',{method:'POST',body:JSON.stringify({title:t,done:on})})}catch(err){}
+    try{await api('/api/done',{method:'POST',body:JSON.stringify({title:ttl,done:on})})}catch(err){}
     return;
   }
   const b=e.target.closest('button[data-del]'); if(!b) return;
